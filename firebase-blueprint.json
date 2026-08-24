@@ -1,0 +1,215 @@
+{
+  "entities": {
+    "Project": {
+      "title": "Project",
+      "description": "A drawing project created by a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "userId": { "type": "string" },
+        "folderId": { "type": "string", "description": "The ID of the folder this project belongs to, or null." },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "thumbnail": { "type": "string", "description": "Base64 or URL move placeholder" },
+        "layersData": { "type": "string", "description": "Serialized JSON string of layers" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "userId", "width", "height", "layersData", "createdAt", "updatedAt"]
+    },
+    "Folder": {
+      "title": "Folder",
+      "description": "A folder for organizing projects.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name", "createdAt", "updatedAt"]
+    },
+    "PublishedArt": {
+      "title": "PublishedArt",
+      "description": "An artwork published to the public gallery.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userDisplayName": { "type": "string" },
+        "userPhotoURL": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "thumbnail": { "type": "string" },
+        "likes": { "type": "number" },
+        "views": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userDisplayName", "title", "thumbnail", "createdAt"]
+    },
+    "Collaboration": {
+      "title": "Collaboration",
+      "description": "Real-time collaboration session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "hostId": { "type": "string" },
+        "hostName": { "type": "string" },
+        "guestId": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "hostId", "guestId", "status", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Custom user profile data.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "clippyPoints": { "type": "number", "default": 0 },
+        "goldPoints": { "type": "number", "default": 0 },
+        "shortId": { "type": "string", "description": "Unique 5-character ID" },
+        "storageLimit": { "type": "number", "default": 10, "description": "Storage limit in GB" },
+        "lastClaimDate": { "type": "string", "format": "date-time", "description": "Last time user claimed daily bonus" },
+        "claimStreak": { "type": "number", "default": 0 },
+        "inventory": { "type": "array", "items": { "type": "string" }, "description": "Unlocked brushes or special boxes" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "updatedAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A record of points earned, spent, or transferred.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "receiverId": { "type": "string", "description": "Target user ID for outgoing transfers" },
+        "senderId": { "type": "string", "description": "Source user ID for incoming transfers" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "enum": ["clippy", "gold"] },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["earn", "spend", "transfer_send", "transfer_receive"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "amount", "currency", "description", "type", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A private message between users or from the system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "system", "gift"] },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "senderId", "receiverId", "content", "type", "isRead", "createdAt"]
+    },
+    "Battle": {
+      "title": "Battle",
+      "description": "A drawing battle between two users.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "challengerId": { "type": "string" },
+        "challengerName": { "type": "string" },
+        "opponentId": { "type": "string" },
+        "opponentName": { "type": "string" },
+        "challengerArtId": { "type": "string" },
+        "challengerArtUrl": { "type": "string" },
+        "challengerArtName": { "type": "string" },
+        "opponentArtId": { "type": "string" },
+        "opponentArtUrl": { "type": "string" },
+        "opponentArtName": { "type": "string" },
+        "challengerStats": { "type": "object" },
+        "opponentStats": { "type": "object" },
+        "status": { "type": "string", "enum": ["pending_accept", "waiting_opponent_art", "fighting", "finished"] },
+        "winnerId": { "type": "string" },
+        "battleLog": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "challengerId", "challengerName", "opponentId", "opponentName", "status", "createdAt", "updatedAt"]
+    },
+    "Stroke": {
+      "title": "Stroke",
+      "description": "A single drawing stroke in a collaborative session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "data": { "type": "string", "description": "Serialized JSON of stroke data" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "data", "createdAt"]
+    },
+    "Team": {
+      "title": "Team",
+      "description": "User's created drawing esquadrão/team and its members.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "members": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "ownerId", "members"]
+    }
+  },
+  "firestore": {
+    "projects/{projectId}": {
+      "schema": "Project",
+      "description": "User illustrations saved in real-time."
+    },
+    "folders/{folderId}": {
+      "schema": "Folder",
+      "description": "Folders for project organization."
+    },
+    "published/{artId}": {
+      "schema": "PublishedArt",
+      "description": "Publicly shared artworks."
+    },
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Custom metadata and profile for the user."
+    },
+    "messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Private messages and notifications."
+    },
+    "transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "History of points for the user."
+    },
+    "battles/{battleId}": {
+      "schema": "Battle",
+      "description": "Drawing battles between users."
+    },
+    "collaborations/{collabId}": {
+      "schema": "Collaboration",
+      "description": "Real-time collaboration sessions."
+    },
+    "collaborations/{collabId}/strokes/{strokeId}": {
+      "schema": "Stroke",
+      "description": "Drawing strokes for collaboration."
+    },
+    "collaborations/{collabId}/chat_messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Chat messages for a collaboration session."
+    },
+    "teams/{teamId}": {
+      "schema": "Team",
+      "description": "User created drawing team/esquadrão."
+    }
+  }
+}

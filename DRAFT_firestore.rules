@@ -1,0 +1,166 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 1. Primitive Definitions (Pillar 3 & 4)
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // 2. Validation Blueprints (Pillar 2)
+    
+    // Project Validation
+    function isValidProject(data) {
+      let requiredKeys = ['id', 'name', 'userId', 'width', 'height', 'layersData', 'createdAt', 'updatedAt'];
+      let optionalKeys = ['thumbnail', 'folderId'];
+      
+      return data.keys().hasAll(requiredKeys)
+        && data.keys().size() >= 8 && data.keys().size() <= 10
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.userId == request.auth.uid
+        && data.width is number && data.width >= 1 && data.width <= 10000
+        && data.height is number && data.height >= 1 && data.height <= 10000
+        && data.layersData is string && data.layersData.size() <= 1048576 * 10 // 10MB limit
+        && (!data.keys().hasAny(['thumbnail']) || (data.thumbnail is string && data.thumbnail.size() <= 2000000))
+        && (!data.keys().hasAny(['folderId']) || (data.folderId == null || (data.folderId is string && isValidId(data.folderId))))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Folder Validation
+    function isValidFolder(data) {
+      let requiredKeys = ['id', 'userId', 'name', 'createdAt', 'updatedAt'];
+      return data.keys().hasAll(requiredKeys)
+        && data.keys().size() == 5
+        && data.id is string && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.name is string && data.name.size() <= 100
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Published Artwork Validation
+    function isValidPublishedArt(data) {
+      let requiredKeys = ['userId', 'userDisplayName', 'title', 'thumbnail', 'likes', 'views', 'createdAt'];
+      let optionalKeys = ['description', 'userPhotoURL'];
+      
+      return data.keys().hasAll(requiredKeys)
+        && data.keys().size() >= 7 && data.keys().size() <= 9
+        && data.userId == request.auth.uid
+        && data.userDisplayName is string && data.userDisplayName.size() <= 100
+        && data.title is string && data.title.size() <= 150
+        && data.thumbnail is string && data.thumbnail.size() <= 2000000
+        && data.likes is number && data.likes >= 0
+        && data.views is number && data.views >= 0
+        && (!data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 2000))
+        && (!data.keys().hasAny(['userPhotoURL']) || (data.userPhotoURL is string && data.userPhotoURL.size() <= 2000))
+        && data.createdAt is timestamp;
+    }
+
+    // 3. Collections (Pillar 1 & 8)
+
+    match /projects/{projectId} {
+      allow get: if isVerified() && isValidId(projectId) && isOwner(existing().userId);
+      allow list: if isVerified() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isVerified() && isValidId(projectId) 
+        && isValidProject(incoming()) 
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      
+      allow update: if isVerified() && isValidId(projectId) 
+        && isOwner(existing().userId)
+        && isValidProject(incoming())
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Rename/Move/Edit
+          incoming().diff(existing()).affectedKeys().hasAny(['name', 'layersData', 'thumbnail', 'updatedAt', 'width', 'height', 'folderId'])
+        );
+
+      allow delete: if isVerified() && isValidId(projectId) && isOwner(existing().userId);
+    }
+
+    match /folders/{folderId} {
+      allow get: if isVerified() && isValidId(folderId) && isOwner(existing().userId);
+      allow list: if isVerified() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isVerified() && isValidId(folderId) 
+        && isValidFolder(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      
+      allow update: if isVerified() && isValidId(folderId) 
+        && isOwner(existing().userId)
+        && isValidFolder(incoming())
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'updatedAt']);
+      
+      allow delete: if isVerified() && isValidId(folderId) && isOwner(existing().userId);
+    }
+
+    match /published/{artId} {
+      // Gallery is public for reading
+      allow get: if true;
+      allow list: if true;
+      
+      allow create: if isVerified() && isValidId(artId) 
+        && isValidPublishedArt(incoming())
+        && incoming().createdAt == request.time;
+      
+      allow update: if isVerified() && isValidId(artId)
+        && (
+          // Case 1: Owner updates metadata
+          (isOwner(existing().userId) && isValidPublishedArt(incoming()) && incoming().userId == existing().userId && incoming().createdAt == existing().createdAt) ||
+          // Case 2: Public engagement (Increment likes/views) - in a real app would use existsAfter/atomicity
+          (incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'views']))
+        );
+
+      allow delete: if isVerified() && isValidId(artId) && isOwner(existing().userId);
+    }
+
+    match /collaborations/{collabId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isOwner(existing().hostId);
+
+      match /strokes/{strokeId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow delete: if isSignedIn();
+      }
+
+      match /cursors/{cursorId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
+      }
+
+      match /chat_messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow delete: if isSignedIn();
+      }
+
+      match /custom_brushes/{brushId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
+      }
+    }
+  }
+}

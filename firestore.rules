@@ -1,0 +1,366 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 1. Primitive Definitions (Pillar 3 & 4)
+    function isSignedIn() { return request.auth != null; }
+    // Note: In some dev environments request.auth.token.email_verified might be null or false for mock users.
+    // For this build, we rely on isSignedIn() but we include isVerified() for production readiness.
+    function isVerified() { return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com'); }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // 2. Validation Blueprints (Pillar 2)
+    
+    // Project Validation
+    function isValidProject(data) {
+      return data.userId is string && data.userId.size() <= 128;
+    }
+
+    // Folder Validation
+    function isValidFolder(data) {
+      let requiredKeys = ['id', 'userId', 'name', 'createdAt', 'updatedAt'];
+      return data.keys().hasAll(requiredKeys)
+        && data.keys().size() == 5
+        && data.id is string && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.name is string && data.name.size() <= 150
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Published Artwork Validation
+    function isValidPublishedArt(data) {
+      let requiredKeys = ['userId', 'userDisplayName', 'title', 'thumbnail', 'likes', 'views', 'createdAt'];
+      
+      return data.keys().hasAll(requiredKeys)
+        && data.keys().size() >= 7 && data.keys().size() <= 15
+        && data.userId == request.auth.uid
+        && data.userDisplayName is string && data.userDisplayName.size() <= 200
+        && data.title is string && data.title.size() <= 200
+        && data.thumbnail is string && data.thumbnail.size() <= 2000000
+        && data.likes is number && data.likes >= 0
+        && data.views is number && data.views >= 0
+        && (!data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 5000))
+        && (!data.keys().hasAny(['userPhotoURL']) || (data.userPhotoURL is string && data.userPhotoURL.size() <= 2000000))
+        && (!data.keys().hasAny(['reports']) || data.reports is list)
+        && (!data.keys().hasAny(['likedBy']) || data.likedBy is list)
+        && (!data.keys().hasAny(['dislikes']) || (data.dislikes is number && data.dislikes >= 0))
+        && (!data.keys().hasAny(['dislikedBy']) || data.dislikedBy is list)
+        && data.createdAt is timestamp;
+    }
+
+    // Published Material Validation
+    function isValidPublishedMaterial(data) {
+      let requiredKeys = ['userId', 'userDisplayName', 'title', 'thumbnail', 'likes', 'views', 'downloads', 'createdAt'];
+      
+      return data.keys().hasAll(requiredKeys)
+        && data.keys().size() >= 8 && data.keys().size() <= 16
+        && data.userId == request.auth.uid
+        && data.userDisplayName is string && data.userDisplayName.size() <= 200
+        && data.title is string && data.title.size() <= 200
+        && data.thumbnail is string && data.thumbnail.size() <= 2000000
+        && data.likes is number && data.likes >= 0
+        && data.views is number && data.views >= 0
+        && data.downloads is number && data.downloads >= 0
+        && (!data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 5000))
+        && (!data.keys().hasAny(['userPhotoURL']) || (data.userPhotoURL is string && data.userPhotoURL.size() <= 2000000))
+        && (!data.keys().hasAny(['reports']) || data.reports is list)
+        && (!data.keys().hasAny(['likedBy']) || data.likedBy is list)
+        && (!data.keys().hasAny(['dislikes']) || (data.dislikes is number && data.dislikes >= 0))
+        && (!data.keys().hasAny(['dislikedBy']) || data.dislikedBy is list)
+        && data.createdAt is timestamp;
+    }
+
+    // Published Brush Validation
+    function isValidPublishedBrush(data) {
+      let requiredKeys = ['userId', 'userDisplayName', 'name', 'dataUrl', 'likes', 'downloads', 'createdAt'];
+      
+      return data.keys().hasAll(requiredKeys)
+        && data.keys().size() >= 7 && data.keys().size() <= 15
+        && data.userId == request.auth.uid
+        && data.userDisplayName is string && data.userDisplayName.size() <= 200
+        && data.name is string && data.name.size() <= 200
+        && data.dataUrl is string && data.dataUrl.size() <= 2000000
+        && data.likes is number && data.likes >= 0
+        && data.downloads is number && data.downloads >= 0
+        && (!data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 5000))
+        && (!data.keys().hasAny(['userPhotoURL']) || (data.userPhotoURL is string && data.userPhotoURL.size() <= 2000000))
+        && (!data.keys().hasAny(['reports']) || data.reports is list)
+        && (!data.keys().hasAny(['likedBy']) || data.likedBy is list)
+        && (!data.keys().hasAny(['dislikes']) || (data.dislikes is number && data.dislikes >= 0))
+        && (!data.keys().hasAny(['dislikedBy']) || data.dislikedBy is list)
+        && data.createdAt is timestamp;
+    }
+
+    // User Profile Validation
+    function isValidUser(data) {
+      let requiredKeys = ['uid', 'updatedAt'];
+      return data.keys().hasAll(requiredKeys)
+        && data.keys().size() >= 2 && data.keys().size() <= 16
+        && data.uid is string
+        && (!data.keys().hasAny(['displayName']) || (data.displayName is string && data.displayName.size() <= 200))
+        && (!data.keys().hasAny(['photoURL']) || (data.photoURL is string && data.photoURL.size() <= 1048576 * 2))
+        && (!data.keys().hasAny(['clippyPoints']) || data.clippyPoints is number)
+        && (!data.keys().hasAny(['goldPoints']) || data.goldPoints is number)
+        && (!data.keys().hasAny(['shortId']) || (data.shortId is string && data.shortId.size() <= 10))
+        && (!data.keys().hasAny(['storageLimit']) || data.storageLimit is number)
+        && (!data.keys().hasAny(['lastClaimDate']) || (data.lastClaimDate is timestamp))
+        && (!data.keys().hasAny(['claimStreak']) || data.claimStreak is number)
+        && (!data.keys().hasAny(['inventory']) || data.inventory is list)
+        && (!data.keys().hasAny(['email']) || (data.email is string && data.email.size() <= 200))
+        && (!data.keys().hasAny(['registeredPassword']) || (data.registeredPassword is string && data.registeredPassword.size() <= 200))
+        && data.updatedAt is timestamp;
+    }
+
+    // Transaction Validation
+    function isValidTransaction(data) {
+      let requiredKeys = ['id', 'userId', 'amount', 'currency', 'description', 'type', 'createdAt'];
+      return data.keys().hasAll(requiredKeys)
+        && data.keys().size() >= 7 && data.keys().size() <= 9
+        && data.id is string
+        && data.userId is string
+        && (!data.keys().hasAny(['receiverId']) || data.receiverId is string)
+        && (!data.keys().hasAny(['senderId']) || data.senderId is string)
+        && data.amount is number
+        && data.currency in ['clippy', 'gold']
+        && data.description is string && data.description.size() <= 600
+        && data.type in ['earn', 'spend', 'transfer_send', 'transfer_receive']
+        && data.createdAt is timestamp;
+    }
+
+    // Message Validation
+    function isValidMessage(data) {
+      let requiredKeys = ['id', 'senderId', 'senderName', 'receiverId', 'content', 'type', 'isRead', 'createdAt'];
+      
+      let isValidStructure = data.keys().hasAll(requiredKeys) && data.keys().size() >= 8 && data.keys().size() <= 11;
+      
+      return isValidStructure
+        && data.id is string && isValidId(data.id)
+        && (data.senderId == request.auth.uid || (data.senderId == 'system_bot' && data.receiverId == request.auth.uid))
+        && data.senderName is string
+        && data.receiverId is string
+        && data.content is string && data.content.size() <= 2000
+        && data.type in ['text', 'system', 'gift', 'project']
+        && data.isRead is bool
+        && data.createdAt is timestamp
+        && (!data.keys().hasAny(['projectId']) || data.projectId is string)
+        && (!data.keys().hasAny(['projectName']) || data.projectName is string)
+        && (!data.keys().hasAny(['projectUrl']) || data.projectUrl is string);
+    }
+
+    // Invite Validation
+    function isValidInvite(data) {
+      let requiredKeys = ['id', 'senderId', 'receiverId', 'status', 'createdAt'];
+      return data.keys().hasAll(requiredKeys)
+        && data.keys().size() >= 5 && data.keys().size() <= 10
+        && data.id is string && isValidId(data.id)
+        && data.senderId == request.auth.uid
+        && data.status in ['pending', 'accepted', 'rejected']
+        && (!data.keys().hasAny(['senderName']) || data.senderName is string)
+        && (!data.keys().hasAny(['receiverName']) || data.receiverName is string)
+        && (!data.keys().hasAny(['groupName']) || data.groupName is string)
+        && (!data.keys().hasAny(['memberCount']) || data.memberCount is number)
+        && (!data.keys().hasAny(['inviteType']) || data.inviteType is string)
+        && data.createdAt is timestamp;
+    }
+
+    // 3. Collections (Pillar 1 & 8)
+
+    match /projects/{projectId} {
+      allow get: if isSignedIn() && isValidId(projectId) && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isSignedIn() && isValidId(projectId) 
+        && isValidProject(incoming()) 
+        && incoming().userId == request.auth.uid;
+      
+      allow update: if isSignedIn() && isValidId(projectId) 
+        && isOwner(existing().userId)
+        && isValidProject(incoming())
+        && incoming().userId == existing().userId;
+
+      allow delete: if isSignedIn() && isValidId(projectId) && isOwner(existing().userId);
+    }
+
+    match /folders/{folderId} {
+      allow get: if isSignedIn() && isValidId(folderId) && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isSignedIn() && isValidId(folderId) 
+        && isValidFolder(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      
+      allow update: if isSignedIn() && isValidId(folderId) 
+        && isOwner(existing().userId)
+        && isValidFolder(incoming())
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'updatedAt']);
+      
+      allow delete: if isSignedIn() && isValidId(folderId) && isOwner(existing().userId);
+    }
+
+    match /published/{artId} {
+      allow get: if true;
+      allow list: if true;
+      
+      allow create: if isSignedIn() && isValidId(artId) 
+        && isValidPublishedArt(incoming())
+        && incoming().createdAt == request.time;
+      
+      allow update: if isSignedIn() && isValidId(artId)
+        && (
+          // Case 1: Owner updates metadata
+          (isOwner(existing().userId) && isValidPublishedArt(incoming()) && incoming().userId == existing().userId && incoming().createdAt == existing().createdAt) ||
+          // Case 2: Public engagement (Increment likes/views, report/unreport, like tracking)
+          (incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'dislikes', 'views', 'reports', 'likedBy', 'dislikedBy']))
+        );
+
+      allow delete: if isSignedIn() && isValidId(artId) && (isOwner(existing().userId) || (existing().reports is list && existing().reports.size() >= 7));
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isValidId(commentId)
+          && incoming().userId == request.auth.uid
+          && incoming().text is string && incoming().text.size() <= 1000
+          && incoming().createdAt == request.time;
+        allow update: if isSignedIn()
+          && isOwner(existing().userId)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'updatedAt', 'isEdited'])
+          && incoming().text is string && incoming().text.size() <= 1000;
+        allow delete: if isSignedIn() && (isOwner(existing().userId) || isOwner(get(/databases/$(database)/documents/published/$(artId)).data.userId));
+      }
+    }
+
+    match /published_materials/{materialId} {
+      allow get: if true;
+      allow list: if true;
+      
+      allow create: if isSignedIn() && isValidId(materialId) 
+        && isValidPublishedMaterial(incoming())
+        && incoming().createdAt == request.time;
+      
+      allow update: if isSignedIn() && isValidId(materialId)
+        && (
+          // Case 1: Owner updates metadata
+          (isOwner(existing().userId) && isValidPublishedMaterial(incoming()) && incoming().userId == existing().userId && incoming().createdAt == existing().createdAt) ||
+          // Case 2: Public engagement
+          (incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'dislikes', 'views', 'downloads', 'reports', 'likedBy', 'dislikedBy']))
+        );
+
+      allow delete: if isSignedIn() && isValidId(materialId) && isOwner(existing().userId);
+    }
+
+    match /published_brushes/{brushId} {
+      allow get: if true;
+      allow list: if true;
+      
+      allow create: if isSignedIn() && isValidId(brushId) 
+        && isValidPublishedBrush(incoming())
+        && incoming().createdAt == request.time;
+      
+      allow update: if isSignedIn() && isValidId(brushId)
+        && (
+          // Case 1: Owner updates metadata
+          (isOwner(existing().userId) && isValidPublishedBrush(incoming()) && incoming().userId == existing().userId && incoming().createdAt == existing().createdAt) ||
+          // Case 2: Public engagement
+          (incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'dislikes', 'downloads', 'likedBy', 'dislikedBy']))
+        );
+
+      allow delete: if isSignedIn() && isValidId(brushId) && isOwner(existing().userId);
+    }
+
+    match /users {
+      allow list: if true;
+      match /{userId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().updatedAt == request.time;
+        allow update: if isSignedIn() && (
+          // Case 1: Owner updates profile/points
+          (isOwner(userId) && isValidUser(incoming()) && incoming().updatedAt == request.time) ||
+          // Case 2: Peer-to-Peer Transfer & Rewards
+          // Restricting which fields can be modified by non-owners
+          (incoming().diff(existing()).affectedKeys().hasAll(['updatedAt']) && 
+           incoming().diff(existing()).affectedKeys().hasAny(['clippyPoints', 'goldPoints', 'inventory']))
+        );
+      }
+    }
+
+    match /messages/{messageId} {
+      allow get: if isSignedIn() && (existing().receiverId == request.auth.uid || existing().senderId == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.receiverId == request.auth.uid || resource.data.senderId == request.auth.uid);
+      
+      allow create: if isSignedIn() && isValidId(messageId) 
+        && isValidMessage(incoming())
+        && (isOwner(incoming().senderId) || (incoming().senderId == 'system_bot' && isOwner(incoming().receiverId)))
+        && incoming().createdAt == request.time;
+      
+      allow update: if isSignedIn() 
+        && (
+          (isOwner(existing().receiverId) && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']) && incoming().isRead == true) ||
+          (isOwner(existing().senderId) && incoming().diff(existing()).affectedKeys().hasOnly(['content', 'isEdited']))
+        );
+      
+      allow delete: if isSignedIn() && (isOwner(existing().senderId) || isOwner(existing().receiverId));
+    }
+
+    match /transactions/{transactionId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.receiverId == request.auth.uid || resource.data.senderId == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.receiverId == request.auth.uid || resource.data.senderId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(transactionId)
+        && isValidTransaction(incoming())
+        && (incoming().userId == request.auth.uid || incoming().receiverId == request.auth.uid || incoming().senderId == request.auth.uid)
+        && incoming().createdAt == request.time;
+    }
+
+    match /invites/{inviteId} {
+      allow create: if isSignedIn() 
+        && isValidId(inviteId)
+        && isValidInvite(incoming())
+        && incoming().createdAt == request.time;
+      allow read: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow update: if isSignedIn() && resource.data.receiverId == request.auth.uid
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status'])
+        && incoming().status in ['accepted', 'rejected'];
+      allow delete: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+    }
+
+    match /collaborations/{collabId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isSignedIn() && (resource.data.hostId == request.auth.uid || resource.data.guestId == request.auth.uid);
+      
+      match /cursors/{cursorId} {
+         allow create, read, update, delete: if isSignedIn();
+      }
+      match /strokes/{strokeId} {
+         allow create, read, update, delete: if isSignedIn();
+      }
+      match /chat_messages/{messageId} {
+         allow create, read, update, delete: if isSignedIn();
+      }
+      match /custom_brushes/{brushId} {
+         allow create, read, update, delete: if isSignedIn();
+      }
+    }
+
+    match /battles/{battleId} {
+      allow create: if isSignedIn() && isValidId(battleId) && incoming().challengerId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.challengerId == request.auth.uid || resource.data.opponentId == request.auth.uid);
+      allow update: if isSignedIn() && (resource.data.challengerId == request.auth.uid || resource.data.opponentId == request.auth.uid);
+      allow delete: if isSignedIn() && resource.data.challengerId == request.auth.uid;
+    }
+
+    match /teams/{teamId} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}

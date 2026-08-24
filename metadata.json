@@ -1,0 +1,7 @@
+{
+  "name": "Studio Paint",
+  "description": "A web-based drawing application similar to Clip Studio Paint with layers, brushes, and color picking.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

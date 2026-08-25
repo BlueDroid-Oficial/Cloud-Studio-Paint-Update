@@ -49,11 +49,14 @@ export function Timeline() {
     activeTimelineId,
     switchTimeline,
     addTimeline,
-    deleteTimeline
+    deleteTimeline,
+    reorderFrames
   } = useStore();
 
   const [duplicationFrame, setDuplicationFrame] = useState<number | null>(null);
   const [duplicationCount, setDuplicationCount] = useState<number>(1);
+  const [draggedFrame, setDraggedFrame] = useState<number | null>(null);
+  const [dragOverFrame, setDragOverFrame] = useState<number | null>(null);
 
   const rulerRef = useRef<HTMLDivElement>(null);
   const [scrollLeft, setScrollLeft] = useState(0);
@@ -380,25 +383,64 @@ export function Timeline() {
             className="h-6 bg-[#e0e0e0] border-b border-[#aaa] flex sticky top-0 z-10"
             style={{ width: totalFrames * frameWidth + 100 }}
           >
-            {Array.from({ length: totalFrames + 4 }).map((_, i) => (
-              <div 
-                key={i}
-                onPointerDown={(e) => handlePointerDownRuler(e, i + 1)}
-                onDoubleClick={() => {
-                  setDuplicationFrame(i + 1);
-                  setDuplicationCount(1);
-                }}
-                className={twMerge(
-                  "border-r border-[#1a1a1a] flex flex-col justify-end shrink-0 cursor-pointer hover:bg-[#ccc] transition-colors relative",
-                  (i + 1) % 5 === 0 ? "bg-[#d0d0d0]" : ""
-                )}
-                style={{ width: frameWidth }}
-              >
-                {((i + 1) % 5 === 0 || i === 0) && (
-                  <span className="text-[9px] text-[#555] absolute bottom-0.5 left-0.5 font-mono select-none">{i + 1}</span>
-                )}
-              </div>
-            ))}
+            {Array.from({ length: totalFrames + 4 }).map((_, i) => {
+              const frameNum = i + 1;
+              const isFrameValid = frameNum <= totalFrames;
+              const isDragging = draggedFrame === frameNum;
+              const isDragOver = dragOverFrame === frameNum;
+              return (
+                <div 
+                  key={i}
+                  draggable={isFrameValid}
+                  onDragStart={(e) => {
+                    if (!isFrameValid) return;
+                    setDraggedFrame(frameNum);
+                    e.dataTransfer.setData("text/plain", String(frameNum));
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragOver={(e) => {
+                    if (!isFrameValid) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverFrame(frameNum);
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverFrame === frameNum) setDragOverFrame(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedFrame(null);
+                    setDragOverFrame(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (!isFrameValid) return;
+                    const src = parseInt(e.dataTransfer.getData("text/plain")) || draggedFrame;
+                    if (src && src !== frameNum) {
+                      reorderFrames(src, frameNum);
+                    }
+                    setDraggedFrame(null);
+                    setDragOverFrame(null);
+                  }}
+                  onPointerDown={(e) => handlePointerDownRuler(e, frameNum)}
+                  onDoubleClick={() => {
+                    setDuplicationFrame(frameNum);
+                    setDuplicationCount(1);
+                  }}
+                  title={isFrameValid ? `Quadro ${frameNum} (Arraste para reordenar)` : undefined}
+                  className={twMerge(
+                    "border-r border-[#1a1a1a] flex flex-col justify-end shrink-0 cursor-grab active:cursor-grabbing hover:bg-[#ccc] transition-colors relative select-none",
+                    frameNum % 5 === 0 ? "bg-[#d0d0d0]" : "",
+                    isDragging ? "opacity-40 bg-indigo-200" : "",
+                    isDragOver ? "bg-indigo-300 ring-2 ring-indigo-600 z-20" : ""
+                  )}
+                  style={{ width: frameWidth }}
+                >
+                  {((frameNum) % 5 === 0 || i === 0) && (
+                    <span className="text-[9px] text-[#555] absolute bottom-0.5 left-0.5 font-mono select-none">{frameNum}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Grid Rows */}
@@ -407,20 +449,64 @@ export function Timeline() {
                <div key={layer.id} className="h-[26px] border-b border-[#ccc] flex relative bg-[#f5f5f5]">
                   {Array.from({ length: totalFrames + 4 }).map((_, fIdx) => {
                     const fNum = fIdx + 1;
+                    const isFrameValid = fNum <= totalFrames;
                     const hasCel = layer.disableKeyframes ? (fNum === 1 || !!layer.cels[fNum]) : !!layer.cels[fNum];
+                    const isDragging = draggedFrame === fNum;
+                    const isDragOver = dragOverFrame === fNum;
                     return (
                       <div 
                         key={`frame-${layer.id}-${fNum}`}
+                        draggable={isFrameValid}
+                        onDragStart={(e) => {
+                          if (!isFrameValid) return;
+                          setDraggedFrame(fNum);
+                          try {
+                            e.dataTransfer.setData("text/plain", String(fNum));
+                            e.dataTransfer.effectAllowed = "move";
+                          } catch (err) {}
+                        }}
+                        onDragOver={(e) => {
+                          if (!isFrameValid) return;
+                          e.preventDefault();
+                          try {
+                            e.dataTransfer.dropEffect = "move";
+                          } catch (err) {}
+                          setDragOverFrame(fNum);
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverFrame === fNum) setDragOverFrame(null);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedFrame(null);
+                          setDragOverFrame(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (!isFrameValid) return;
+                          let src: number | null = null;
+                          try {
+                            const val = e.dataTransfer.getData("text/plain");
+                            if (val) src = parseInt(val);
+                          } catch (err) {}
+                          if (!src) src = draggedFrame;
+                          if (src && src !== fNum) {
+                            reorderFrames(src, fNum);
+                          }
+                          setDraggedFrame(null);
+                          setDragOverFrame(null);
+                        }}
                         onClick={() => handleFrameClick(fNum)}
                         onDoubleClick={() => {
                           setDuplicationFrame(fNum);
                           setDuplicationCount(1);
                         }}
                         className={twMerge(
-                          "border-r border-[#ccc] shrink-0 relative flex items-center justify-center cursor-pointer",
+                          "border-r border-[#ccc] shrink-0 relative flex items-center justify-center cursor-pointer select-none",
                           hasCel ? "bg-[#d4d4d4]" : "bg-[#f5f5f5]",
                           fNum % 5 === 0 && !hasCel ? "bg-[#e5e5e5]" : "",
-                          fNum === currentFrame ? "bg-[#b3d4ff]/80 ring-1 ring-inset ring-[#0066cc]" : ""
+                          fNum === currentFrame ? "bg-[#b3d4ff]/80 ring-1 ring-inset ring-[#0066cc]" : "",
+                          isDragging ? "opacity-40 bg-indigo-200" : "",
+                          isDragOver ? "bg-indigo-300 ring-2 ring-indigo-600 z-20" : ""
                         )}
                         style={{ width: frameWidth }}
                       >

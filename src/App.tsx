@@ -20,6 +20,7 @@ import { MiniGamesModal } from './components/MiniGamesModal';
 import { TutorialOverlay } from './components/TutorialOverlay';
 import { VersionUpdateModal } from './components/VersionUpdateModal';
 import { CollabChat } from './components/CollabChat';
+import { OfflineToast } from './components/OfflineToast';
 import { useStore } from './store/useStore';
 import { getTranslation } from './lib/translations';
 import { Undo, Redo, X, LayoutGrid } from 'lucide-react';
@@ -81,9 +82,9 @@ export default function App() {
   useEffect(() => {
     if (state.tutorialCompleted) {
       const lastVersion = localStorage.getItem('lastShownVersion');
-      if (lastVersion !== '2.3.0') {
+      if (lastVersion !== '2.3.7') {
         setShowUpdateModal(true);
-        localStorage.setItem('lastShownVersion', '2.3.0');
+        localStorage.setItem('lastShownVersion', '2.3.7');
       }
     }
   }, [state.tutorialCompleted]);
@@ -279,6 +280,7 @@ export default function App() {
   if (state.appView === 'start') {
     return (
       <div style={{ zoom: state.uiScale } as React.CSSProperties} className={`h-screen w-screen overflow-hidden relative ${themeClasses[state.theme as keyof typeof themeClasses] || themeClasses.night}`}>
+        <OfflineToast />
         <StartScreen />
         <TutorialOverlay />
       </div>
@@ -287,6 +289,7 @@ export default function App() {
 
   return (
     <div style={{ zoom: state.uiScale } as React.CSSProperties} className={`h-[100dvh] w-screen flex flex-col overflow-hidden font-sans relative ${themeClasses[state.theme as keyof typeof themeClasses] || themeClasses.night}`}>
+      <OfflineToast />
       {!state.simpleMode && (
         <DraggablePanel id="menubar" className="z-[100] relative">
           <MenuBar />

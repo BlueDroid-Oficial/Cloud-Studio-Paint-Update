@@ -1,15 +1,10 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Plus, Clock, Fingerprint, X, Copy, Trash2, Zap, Settings2, RefreshCcw, ArrowRight, ArrowLeft, Trash, Shuffle, PlayCircle } from 'lucide-react';
-import { useStore } from '../store/useStore';
-import { twMerge } from 'tailwind-merge';
+const fs = require('fs');
+let code = fs.readFileSync('src/components/SimpleTimeline.tsx', 'utf-8');
 
-
+const replacement = `
 function SimpleFrameItem({ frameId, isSelected, currentFrame, setCurrentFrame, layers }: any) {
   const [showFrameMenu, setShowFrameMenu] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const { frameDurations, setFrameDuration, toggleKeyframe, removeFrame, keyframedLayers, addFrame, reverseAnimation, shiftFramesRight, shiftFramesLeft, clearCurrentFrame, copyFrameToAll, randomizeFrames, pingPongAnimation, deleteFrame, activeLayerId, reorderFrames, totalFrames } = useStore();
+  const { frameDurations, setFrameDuration, toggleKeyframe, removeFrame, keyframedLayers, addFrame, reverseAnimation, shiftFramesRight, shiftFramesLeft, clearCurrentFrame, copyFrameToAll, randomizeFrames, pingPongAnimation, deleteFrame, activeLayerId } = useStore();
 
   const handleDuplicate = (e: any) => {
     e.stopPropagation();
@@ -18,50 +13,7 @@ function SimpleFrameItem({ frameId, isSelected, currentFrame, setCurrentFrame, l
   };
 
   return (
-    <div 
-      className="relative shrink-0 select-none"
-      style={{ touchAction: 'manipulation', WebkitUserSelect: 'none' }}
-      draggable={true}
-      onDragStart={(e) => {
-        setIsDragging(true);
-        (window as any).__draggedFrameId = frameId;
-        try {
-          e.dataTransfer.setData("text/plain", String(frameId));
-          e.dataTransfer.effectAllowed = "move";
-        } catch (err) {
-          // Legacy browser dataTransfer fallback
-        }
-      }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        try {
-          e.dataTransfer.dropEffect = "move";
-        } catch (err) {}
-        setIsDragOver(true);
-      }}
-      onDragLeave={() => setIsDragOver(false)}
-      onDragEnd={() => {
-        setIsDragging(false);
-        setIsDragOver(false);
-        (window as any).__draggedFrameId = null;
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        let srcFrame: number | null = null;
-        try {
-          const textData = e.dataTransfer.getData("text/plain");
-          if (textData) srcFrame = parseInt(textData);
-        } catch (err) {}
-        if (!srcFrame) srcFrame = (window as any).__draggedFrameId;
-        
-        if (srcFrame && srcFrame !== frameId) {
-          reorderFrames(srcFrame, frameId);
-        }
-        setIsDragging(false);
-        setIsDragOver(false);
-        (window as any).__draggedFrameId = null;
-      }}
-    >
+    <div className="relative shrink-0">
       <button 
         onClick={() => {
           if (isSelected) {
@@ -71,12 +23,10 @@ function SimpleFrameItem({ frameId, isSelected, currentFrame, setCurrentFrame, l
           }
         }}
         className={twMerge(
-          "relative w-12 h-12 rounded-xl border flex flex-col items-center justify-center transition-all overflow-hidden group cursor-grab active:cursor-grabbing",
+          "relative w-12 h-12 rounded-xl border flex flex-col items-center justify-center transition-all overflow-hidden group",
           isSelected 
             ? "border-indigo-500 bg-indigo-500/10 shadow-[0_0_15px_rgba(99,102,241,0.2)]" 
-            : "border-white/10 bg-zinc-800/50 hover:border-white/30",
-          isDragging && "opacity-40 scale-95 border-indigo-400 bg-indigo-500/20",
-          isDragOver && "ring-2 ring-indigo-500 scale-105 z-20 bg-indigo-500/30"
+            : "border-white/10 bg-zinc-800/50 hover:border-white/30"
         )}
       >
         <span className={twMerge(
@@ -88,7 +38,7 @@ function SimpleFrameItem({ frameId, isSelected, currentFrame, setCurrentFrame, l
         {keyframedLayers[frameId]?.length > 0 && (
           <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-yellow-400" />
         )}
-        <div className="absolute bottom-0 left-0 h-1 bg-white/20" style={{ width: `${Math.min(100, (frameDurations[frameId] || 100) / 5)}%` }} />
+        <div className="absolute bottom-0 left-0 h-1 bg-white/20" style={{ width: \`\${Math.min(100, (frameDurations[frameId] || 100) / 5)}%\` }} />
       </button>
 
       <AnimatePresence>
@@ -106,8 +56,8 @@ function SimpleFrameItem({ frameId, isSelected, currentFrame, setCurrentFrame, l
               </button>
             </div>
             
-            <div className="p-2 pb-2">
-                <div className="text-[10px] text-zinc-500 uppercase font-bold px-2 py-1">Opções da Animação</div>
+            <div className="p-2 pb-0">
+                <div className="text-[10px] text-zinc-500 uppercase font-bold px-3 py-1 mt-2">Opções da Animação</div>
                 <div className="grid grid-cols-2 gap-1 p-1">
                   <button onClick={(e) => { e.stopPropagation(); if (activeLayerId) reverseAnimation(activeLayerId); setShowFrameMenu(false); }} className="flex flex-col items-center gap-1.5 p-2 hover:bg-white/5 rounded-xl transition-colors group">
                     <RefreshCcw size={14} className="text-zinc-400 group-hover:text-indigo-400" />
@@ -142,29 +92,6 @@ function SimpleFrameItem({ frameId, isSelected, currentFrame, setCurrentFrame, l
                     <span className="text-[8px] font-bold uppercase text-red-400 text-center">Excluir</span>
                   </button>
                 </div>
-
-                {/* Legacy Browser / Touch Reorder Controls */}
-                <div className="pt-2 border-t border-white/10 mt-1 space-y-1">
-                  <div className="text-[9px] text-zinc-400 font-bold uppercase text-center">Reordenar Quadro</div>
-                  <div className="flex gap-1.5 px-1">
-                    <button 
-                      disabled={frameId <= 1}
-                      onClick={(e) => { e.stopPropagation(); reorderFrames(frameId, frameId - 1); }}
-                      className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-30 rounded-lg text-[9px] text-zinc-300 font-bold flex items-center justify-center gap-1 transition-colors"
-                      title="Mover quadro para a esquerda"
-                    >
-                      <ChevronLeft size={12} /> P/ Esquerda
-                    </button>
-                    <button 
-                      disabled={frameId >= totalFrames}
-                      onClick={(e) => { e.stopPropagation(); reorderFrames(frameId, frameId + 1); }}
-                      className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 disabled:opacity-30 rounded-lg text-[9px] text-zinc-300 font-bold flex items-center justify-center gap-1 transition-colors"
-                      title="Mover quadro para a direita"
-                    >
-                      P/ Direita <ChevronRight size={12} />
-                    </button>
-                  </div>
-                </div>
             </div>
           </motion.div>
         )}
@@ -172,8 +99,13 @@ function SimpleFrameItem({ frameId, isSelected, currentFrame, setCurrentFrame, l
     </div>
   );
 }
+`;
 
-export function SimpleTimeline() {
+code = code.replace(/function SimpleFrameItem.*?\}\n\s*\}\n\s*\]\n\s*\}\n\s*\}/s, 'REPLACE_ME_LATER');
+// Actually, it's easier to just rebuild it all
+code = code.substring(0, code.indexOf('function SimpleFrameItem'));
+code += replacement + '\n';
+code += `export function SimpleTimeline() {
   const { totalFrames, currentFrame, setCurrentFrame, layers, addFrame } = useStore();
   return (
     <div 
@@ -220,3 +152,6 @@ export function SimpleTimeline() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/components/SimpleTimeline.tsx', code);

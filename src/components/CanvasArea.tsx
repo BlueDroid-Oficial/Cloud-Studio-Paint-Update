@@ -84,7 +84,7 @@ const WarpedSelectionOverlay: React.FC<WarpedSelectionOverlayProps> = ({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, 99999, 99999);
 
     if (transformPoints) {
       drawWarpedMesh(floatingSelection.canvas, ctx, transformPoints, transformMode);
@@ -1027,7 +1027,7 @@ export function CanvasArea() {
       setBezierPoints([]);
       const interactionCtx = interactionCanvasRef.current?.getContext("2d");
       if (interactionCtx) {
-        interactionCtx.clearRect(0, 0, width, height);
+        interactionCtx.clearRect(0, 0, 99999, 99999);
       }
       renderDisplay();
       setTimeout(() => useStore.getState().pushHistory(), 10);
@@ -1072,7 +1072,7 @@ export function CanvasArea() {
 
     // Clear interaction canvas for non-previewing tools
     const interactionCtx = interactionCanvasRef.current?.getContext("2d");
-    if (interactionCtx) interactionCtx.clearRect(0, 0, width, height);
+    if (interactionCtx) interactionCtx.clearRect(0, 0, 99999, 99999);
   }, [
     tool,
     floatingSelection,
@@ -1288,7 +1288,7 @@ export function CanvasArea() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, 99999, 99999);
 
     const state = useStore.getState();
     const style = state.shapeStyle;
@@ -1350,7 +1350,7 @@ export function CanvasArea() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, 99999, 99999);
     if (points.length === 0) return;
 
     // Draw path
@@ -1776,7 +1776,7 @@ export function CanvasArea() {
         }
         if (interactionCanvasRef.current) {
           const iCtx = interactionCanvasRef.current.getContext("2d");
-          iCtx?.clearRect(0, 0, width, height);
+          iCtx?.clearRect(0, 0, 99999, 99999);
         }
       }
 
@@ -2036,7 +2036,7 @@ export function CanvasArea() {
       specialRulerCenterRef.current = coords;
       const iCtx = interactionCanvasRef.current?.getContext("2d");
       if (iCtx) {
-        iCtx.clearRect(0, 0, width, height);
+        iCtx.clearRect(0, 0, 99999, 99999);
         iCtx.strokeStyle = "#e11d48";
         iCtx.lineWidth = 2;
         iCtx.beginPath();
@@ -2210,6 +2210,106 @@ export function CanvasArea() {
     useStore.getState().setColor(hex);
   };
 
+  const renderTextureStamp = (
+    ctx: CanvasRenderingContext2D,
+    texture: string,
+    color: string,
+    size: number,
+    opacity: number,
+    hardness: number = 100
+  ) => {
+    ctx.save();
+    ctx.globalAlpha = opacity / 100;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+
+    const radius = size / 2;
+
+    if (texture === 'solid' || texture === 'round') {
+      if (hardness < 100) {
+        const grad = ctx.createRadialGradient(0, 0, Math.max(0, radius * (hardness / 100)), 0, 0, radius);
+        grad.addColorStop(0, color);
+        grad.addColorStop(1, 'transparent');
+        ctx.fillStyle = grad;
+      }
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (texture === 'soft' || texture === 'airbrush') {
+      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+      grad.addColorStop(0, color);
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (texture === 'pencil' || texture === 'graphite') {
+      const count = Math.max(5, Math.floor(size * 1.5));
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * radius;
+        const px = Math.cos(a) * r;
+        const py = Math.sin(a) * r;
+        const dotSize = Math.max(1, size * 0.15 * Math.random());
+        ctx.globalAlpha = (opacity / 100) * (0.3 + Math.random() * 0.5);
+        ctx.fillRect(px - dotSize / 2, py - dotSize / 2, dotSize, dotSize);
+      }
+    } else if (texture === 'charcoal' || texture === 'chalk') {
+      const count = Math.max(8, Math.floor(size * 2.5));
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.pow(Math.random(), 0.5) * radius;
+        const px = Math.cos(a) * r;
+        const py = Math.sin(a) * r;
+        const w = 1 + Math.random() * (size * 0.2);
+        const h = 1 + Math.random() * (size * 0.2);
+        ctx.globalAlpha = (opacity / 100) * Math.random();
+        ctx.fillRect(px - w / 2, py - h / 2, w, h);
+      }
+    } else if (texture === 'watercolor' || texture === 'wet-ink') {
+      const grad = ctx.createRadialGradient(0, 0, radius * 0.2, 0, 0, radius);
+      grad.addColorStop(0, color);
+      grad.addColorStop(0.7, color);
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = (opacity / 100) * 0.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (texture === 'pixel-dither' || texture === 'pixel') {
+      const step = Math.max(2, Math.floor(size / 6));
+      const half = Math.floor(size / 2);
+      for (let dx = -half; dx <= half; dx += step) {
+        for (let dy = -half; dy <= half; dy += step) {
+          if (dx * dx + dy * dy <= radius * radius) {
+            if ((Math.abs(dx) + Math.abs(dy)) % (step * 2) === 0) {
+              ctx.fillRect(dx, dy, step, step);
+            }
+          }
+        }
+      }
+    } else if (texture === 'halftone' || texture === 'screentone') {
+      const dotSpacing = Math.max(4, Math.floor(size / 4));
+      const dotRadius = Math.max(1, dotSpacing * 0.35);
+      const half = Math.floor(size / 2);
+      for (let dx = -half; dx <= half; dx += dotSpacing) {
+        for (let dy = -half; dy <= half; dy += dotSpacing) {
+          if (dx * dx + dy * dy <= radius * radius) {
+            ctx.beginPath();
+            ctx.arc(dx, dy, dotRadius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  };
+
   const drawStamp = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
     const { brushHardness, brushScatter } = useStore.getState();
     let ox = x;
@@ -2259,144 +2359,7 @@ export function CanvasArea() {
 
     ctx.save();
     ctx.translate(ox, oy);
-
-    if (brushTexture === "solid") {
-      ctx.globalAlpha = brushOpacity / 100;
-      if (brushHardness < 100) {
-        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, brushSize / 2);
-        grad.addColorStop(0, color);
-        grad.addColorStop(Math.max(0, brushHardness / 100), color);
-        grad.addColorStop(1, "transparent");
-        ctx.fillStyle = grad;
-      } else {
-        ctx.fillStyle = color;
-      }
-      ctx.beginPath();
-      ctx.arc(0, 0, brushSize / 2, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (brushTexture === "pencil") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.5;
-      for (let i = 0; i < 3; i++) {
-        const ox = (Math.random() - 0.5) * brushSize * 0.5;
-        const oy = (Math.random() - 0.5) * brushSize * 0.5;
-        ctx.beginPath();
-        ctx.arc(ox, oy, brushSize * 0.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (brushTexture === "charcoal") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.8;
-      for (let i = 0; i < 5; i++) {
-        const ox = (Math.random() - 0.5) * brushSize;
-        const oy = (Math.random() - 0.5) * brushSize;
-        const s = Math.random() * brushSize * 0.4;
-        ctx.fillRect(ox, oy, s, s);
-      }
-    } else if (brushTexture === "spray") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = brushOpacity / 100;
-      for (let i = 0; i < 10; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const radius = Math.random() * brushSize * 0.8;
-        const ox = Math.cos(angle) * radius;
-        const oy = Math.sin(angle) * radius;
-        ctx.fillRect(ox, oy, 1, 1);
-      }
-    } else if (brushTexture === "watercolor") {
-      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, brushSize * 0.5);
-      grad.addColorStop(0, color);
-      grad.addColorStop(1, "transparent");
-      ctx.fillStyle = grad;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.15;
-      ctx.beginPath();
-      ctx.arc(0, 0, brushSize * 0.5, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (brushTexture === "oil") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.4;
-      const s = brushSize * 0.8;
-      ctx.save();
-      ctx.rotate(Math.random() * Math.PI);
-      ctx.fillRect(-s / 2, -s / 2, s, s);
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = "rgba(0,0,0,0.1)";
-      ctx.strokeRect(-s / 2, -s / 2, s, s);
-      ctx.restore();
-    } else if (brushTexture === "ink") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = brushOpacity / 100;
-      ctx.beginPath();
-      ctx.arc(0, 0, brushSize * 0.4, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (brushTexture === "crayon") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.6;
-      for (let i = 0; i < 4; i++) {
-        const s = Math.random() * brushSize * 0.3;
-        const ox = (Math.random() - 0.5) * brushSize * 0.5;
-        const oy = (Math.random() - 0.5) * brushSize * 0.5;
-        ctx.fillRect(ox, oy, s, s);
-      }
-    } else if (brushTexture === "gouache") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.9;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, brushSize * 0.5, brushSize * 0.4, Math.random() * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (brushTexture === "chalk") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.7;
-      for (let i = 0; i < 6; i++) {
-        const ox = (Math.random() - 0.5) * brushSize;
-        const oy = (Math.random() - 0.5) * brushSize;
-        const s = Math.random() * brushSize * 0.25;
-        ctx.fillRect(ox, oy, s, s);
-      }
-    } else if (brushTexture === "pastel") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.5;
-      for (let i = 0; i < 8; i++) {
-        const ox = (Math.random() - 0.5) * brushSize * 0.8;
-        const oy = (Math.random() - 0.5) * brushSize * 0.8;
-        ctx.beginPath();
-        ctx.arc(ox, oy, brushSize * 0.15, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (brushTexture === "marker") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.8;
-      ctx.fillRect(-brushSize / 2, -brushSize / 4, brushSize, brushSize / 2);
-    } else if (brushTexture === "sponge") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.4;
-      for (let i = 0; i < 12; i++) {
-        const ox = (Math.random() - 0.5) * brushSize;
-        const oy = (Math.random() - 0.5) * brushSize;
-        const r = Math.random() * brushSize * 0.3;
-        ctx.beginPath();
-        ctx.arc(ox, oy, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (brushTexture === "airbrush") {
-      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, brushSize / 2);
-      grad.addColorStop(0, color);
-      grad.addColorStop(0.3, color);
-      grad.addColorStop(1, "transparent");
-      ctx.fillStyle = grad;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.3;
-      ctx.beginPath();
-      ctx.arc(0, 0, brushSize / 2, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (brushTexture === "dry-brush") {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = (brushOpacity / 100) * 0.6;
-      for (let i = 0; i < 5; i++) {
-        const oy = (Math.random() - 0.5) * brushSize * 0.6;
-        ctx.fillRect(-brushSize / 2, oy, brushSize, brushSize * 0.1);
-      }
-    }
-
+    renderTextureStamp(ctx, brushTexture, color, brushSize, brushOpacity, brushHardness);
     ctx.restore();
   };
 
@@ -2454,144 +2417,7 @@ export function CanvasArea() {
 
     ctx.save();
     ctx.translate(ox, oy);
-
-    if (bTexture === "solid") {
-      ctx.globalAlpha = bOpacity / 100;
-      if (bHardness < 100) {
-        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, bSize / 2);
-        grad.addColorStop(0, bColor);
-        grad.addColorStop(Math.max(0, bHardness / 100), bColor);
-        grad.addColorStop(1, "transparent");
-        ctx.fillStyle = grad;
-      } else {
-        ctx.fillStyle = bColor;
-      }
-      ctx.beginPath();
-      ctx.arc(0, 0, bSize / 2, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (bTexture === "pencil") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = (bOpacity / 100) * 0.5;
-      for (let i = 0; i < 3; i++) {
-        const ox = (Math.random() - 0.5) * bSize * 0.5;
-        const oy = (Math.random() - 0.5) * bSize * 0.5;
-        ctx.beginPath();
-        ctx.arc(ox, oy, bSize * 0.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (bTexture === "charcoal") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = (bOpacity / 100) * 0.8;
-      for (let i = 0; i < 5; i++) {
-        const ox = (Math.random() - 0.5) * bSize;
-        const oy = (Math.random() - 0.5) * bSize;
-        const s = Math.random() * bSize * 0.4;
-        ctx.fillRect(ox, oy, s, s);
-      }
-    } else if (bTexture === "spray") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = bOpacity / 100;
-      for (let i = 0; i < 10; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const radius = Math.random() * bSize * 0.8;
-        const ox = Math.cos(angle) * radius;
-        const oy = Math.sin(angle) * radius;
-        ctx.fillRect(ox, oy, 1, 1);
-      }
-    } else if (bTexture === "watercolor") {
-      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, bSize * 0.5);
-      grad.addColorStop(0, bColor);
-      grad.addColorStop(1, "transparent");
-      ctx.fillStyle = grad;
-      ctx.globalAlpha = (bOpacity / 100) * 0.15;
-      ctx.beginPath();
-      ctx.arc(0, 0, bSize * 0.5, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (bTexture === "oil") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = (bOpacity / 100) * 0.4;
-      const s = bSize * 0.8;
-      ctx.save();
-      ctx.rotate(Math.random() * Math.PI);
-      ctx.fillRect(-s / 2, -s / 2, s, s);
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = "rgba(0,0,0,0.1)";
-      ctx.strokeRect(-s / 2, -s / 2, s, s);
-      ctx.restore();
-    } else if (bTexture === "ink") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = bOpacity / 100;
-      ctx.beginPath();
-      ctx.arc(0, 0, bSize * 0.4, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (bTexture === "crayon") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = (bOpacity / 100) * 0.6;
-      for (let i = 0; i < 4; i++) {
-        const s = Math.random() * bSize * 0.3;
-        const ox = (Math.random() - 0.5) * bSize * 0.5;
-        const oy = (Math.random() - 0.5) * bSize * 0.5;
-        ctx.fillRect(ox, oy, s, s);
-      }
-    } else if (bTexture === "gouache") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = (bOpacity / 100) * 0.9;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, bSize * 0.5, bSize * 0.4, Math.random() * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (bTexture === "chalk") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = (bOpacity / 100) * 0.7;
-      for (let i = 0; i < 6; i++) {
-        const ox = (Math.random() - 0.5) * bSize;
-        const oy = (Math.random() - 0.5) * bSize;
-        const s = Math.random() * bSize * 0.25;
-        ctx.fillRect(ox, oy, s, s);
-      }
-    } else if (bTexture === "pastel") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = (bOpacity / 100) * 0.5;
-      for (let i = 0; i < 8; i++) {
-        const ox = (Math.random() - 0.5) * bSize * 0.8;
-        const oy = (Math.random() - 0.5) * bSize * 0.8;
-        ctx.beginPath();
-        ctx.arc(ox, oy, bSize * 0.15, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (bTexture === "marker") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = (bOpacity / 100) * 0.8;
-      ctx.fillRect(-bSize / 2, -bSize / 4, bSize, bSize / 2);
-    } else if (bTexture === "sponge") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = (bOpacity / 100) * 0.4;
-      for (let i = 0; i < 12; i++) {
-        const ox = (Math.random() - 0.5) * bSize;
-        const oy = (Math.random() - 0.5) * bSize;
-        const r = Math.random() * bSize * 0.3;
-        ctx.beginPath();
-        ctx.arc(ox, oy, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (bTexture === "airbrush") {
-      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, bSize / 2);
-      grad.addColorStop(0, bColor);
-      grad.addColorStop(0.3, bColor);
-      grad.addColorStop(1, "transparent");
-      ctx.fillStyle = grad;
-      ctx.globalAlpha = (bOpacity / 100) * 0.3;
-      ctx.beginPath();
-      ctx.arc(0, 0, bSize / 2, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (bTexture === "dry-brush") {
-      ctx.fillStyle = bColor;
-      ctx.globalAlpha = (bOpacity / 100) * 0.6;
-      for (let i = 0; i < 5; i++) {
-        const oy = (Math.random() - 0.5) * bSize * 0.6;
-        ctx.fillRect(-bSize / 2, oy, bSize, bSize * 0.1);
-      }
-    }
-
+    renderTextureStamp(ctx, bTexture, bColor, bSize, bOpacity, bHardness);
     ctx.restore();
   };
 
@@ -2645,7 +2471,7 @@ export function CanvasArea() {
       // Clear interaction canvas if we were drawing
       if (interactionCanvasRef.current) {
         const iCtx = interactionCanvasRef.current.getContext("2d");
-        iCtx?.clearRect(0, 0, width, height);
+        iCtx?.clearRect(0, 0, 99999, 99999);
       }
 
       const pinchData = getPinchData(activePointersRef.current);
@@ -2829,7 +2655,7 @@ export function CanvasArea() {
         lassoPointsRef.current.push(coords);
         const interactionCtx = interactionCanvasRef.current?.getContext("2d");
         if (interactionCtx) {
-          interactionCtx.clearRect(0, 0, width, height);
+          interactionCtx.clearRect(0, 0, 99999, 99999);
           interactionCtx.strokeStyle = "#4c4cff";
           interactionCtx.lineWidth = 1.5;
           interactionCtx.setLineDash([4, 4]);
@@ -2931,7 +2757,7 @@ export function CanvasArea() {
     if (tool === "text") {
       const interactionCtx = interactionCanvasRef.current?.getContext("2d");
       if (interactionCtx) {
-        interactionCtx.clearRect(0, 0, width, height);
+        interactionCtx.clearRect(0, 0, 99999, 99999);
         const state = useStore.getState();
         interactionCtx.font = `${state.brushSize * 2}px ${state.textFont}`;
         interactionCtx.globalAlpha = state.brushOpacity / 100;
@@ -3004,12 +2830,36 @@ export function CanvasArea() {
               draw = (gx0 % 2 === 0) && (gy0 % 2 === 0);
             } else if (texture === "dither-75") {
               draw = (gx0 % 2 === 0) || (gy0 % 2 === 0);
+            } else if (texture === "dither-12") {
+              draw = (gx0 % 4 === 0) && (gy0 % 4 === 0);
+            } else if (texture === "dither-33") {
+              draw = (gx0 + gy0 * 2) % 3 === 0;
+            } else if (texture === "dither-66") {
+              draw = (gx0 + gy0 * 2) % 3 !== 0;
             } else if (texture === "horizontal") {
               draw = gy0 % 2 === 0;
             } else if (texture === "vertical") {
               draw = gx0 % 2 === 0;
             } else if (texture === "crosshatch") {
               draw = (gx0 % 3 === 0) || (gy0 % 3 === 0);
+            } else if (texture === "pixel-checker-dense") {
+              draw = (Math.floor(gx0 / 2) + Math.floor(gy0 / 2)) % 2 === 0;
+            } else if (texture === "pixel-diagonal-left") {
+              draw = (gx0 + gy0) % 3 === 0;
+            } else if (texture === "pixel-diagonal-right") {
+              draw = (gx0 - gy0 + 1000) % 3 === 0;
+            } else if (texture === "pixel-brick") {
+              draw = (gy0 % 3 !== 0) && ((Math.floor(gy0 / 3) % 2 === 0 ? gx0 : gx0 + 2) % 4 !== 0);
+            } else if (texture === "pixel-dots-grid") {
+              draw = (gx0 % 3 === 0) && (gy0 % 3 === 0);
+            } else if (texture === "pixel-stars") {
+              const mx = (gx0 % 4 + 4) % 4;
+              const my = (gy0 % 4 + 4) % 4;
+              draw = (mx === 1 && my === 0) || (mx === 0 && my === 1) || (mx === 1 && my === 1) || (mx === 2 && my === 1) || (mx === 1 && my === 2);
+            } else if (texture === "pixel-noise") {
+              draw = (Math.sin(gx0 * 12.9898 + gy0 * 78.233) * 43758.5453 % 1) > 0.4;
+            } else if (texture === "pixel-weave") {
+              draw = ((gx0 % 4 < 2 && gy0 % 4 < 2) || (gx0 % 4 >= 2 && gy0 % 4 >= 2));
             }
 
             if (draw) cx.fillRect(gx0 * pixelSz, gy0 * pixelSz, pixelSz, pixelSz);
@@ -3599,7 +3449,7 @@ export function CanvasArea() {
             state.pushHistory();
           }, 10);
           const interactionCtx = interactionCanvasRef.current?.getContext("2d");
-          if (interactionCtx) interactionCtx.clearRect(0, 0, width, height);
+          if (interactionCtx) interactionCtx.clearRect(0, 0, 99999, 99999);
         } else if (activeLayer.ctx) {
           // Direct Draw
           const tempCanvas = interactionCanvasRef.current;
@@ -3615,7 +3465,7 @@ export function CanvasArea() {
             ctx.drawImage(tempCanvas, 0, 0);
           }
           const interactionCtx = interactionCanvasRef.current?.getContext("2d");
-          if (interactionCtx) interactionCtx.clearRect(0, 0, width, height);
+          if (interactionCtx) interactionCtx.clearRect(0, 0, 99999, 99999);
           if (state.animationEnabled) state._saveCurrentCels();
           setTimeout(() => {
             renderDisplay();
@@ -3669,7 +3519,7 @@ export function CanvasArea() {
           maskCanvas: maskCanvas
         });
         const interactionCtx = interactionCanvasRef.current?.getContext("2d");
-        if (interactionCtx) interactionCtx.clearRect(0, 0, width, height);
+        if (interactionCtx) interactionCtx.clearRect(0, 0, 99999, 99999);
       }
     }
 

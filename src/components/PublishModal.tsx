@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Upload, Tag, Loader2 } from 'lucide-react';
+import { X, Upload, Tag, Loader2, Lock, User as UserIcon, LogIn } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -9,9 +9,55 @@ export function PublishModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [description, setDescription] = useState('');
   const [publishType, setPublishType] = useState<'artwork' | 'material' | 'animation'>('artwork');
   const [loading, setLoading] = useState(false);
-  const { user, layers, width, height, canvasBackgroundColor, fps, _exportFrames } = useStore();
+  const { user, layers, width, height, canvasBackgroundColor, fps, _exportFrames, setAppView } = useStore();
   
   if (!isOpen) return null;
+
+  if (!user) {
+    return (
+      <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4 animate-fade-in">
+        <div className="bg-[#2d2d2d] w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl border border-zinc-700/60 text-center relative">
+          <button 
+            onClick={onClose} 
+            className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+          >
+            <X size={20} />
+          </button>
+          
+          <div className="w-16 h-16 rounded-full bg-indigo-600/20 text-indigo-400 border border-indigo-500/40 flex items-center justify-center mx-auto shadow-inner">
+            <Lock size={32} />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xl font-extrabold text-white tracking-wide">Publicação Requer Login</h2>
+            <p className="text-xs text-zinc-400 leading-relaxed px-2">
+              Para publicar sua arte na galeria da comunidade, compartilhar animações ou disponibilizar materiais, você precisa entrar na sua conta ou fazer um cadastro rápido.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2.5 pt-2">
+            <button
+              onClick={() => {
+                onClose();
+                setAppView("start");
+              }}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm py-3 rounded-xl transition-all cursor-pointer shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2 uppercase tracking-wider"
+            >
+              <LogIn size={18} />
+              Logar / Registrar para Publicar
+            </button>
+            
+            <button
+              onClick={onClose}
+              className="w-full bg-[#1a1a1a] hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer border border-zinc-800"
+            >
+              Continuar Desenhando Sem Logar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handlePublish = async () => {
     if (!user) {

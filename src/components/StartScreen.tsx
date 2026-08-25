@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useStore } from "../store/useStore";
 import { getTranslation } from "../lib/translations";
+import { getAllLocalDrafts } from "../lib/localDb";
 import { GameModal } from "./GameModal";
 import {
   Home,
@@ -51,7 +52,11 @@ import {
   EyeOff,
   Clock,
   Image as ImageIcon,
-  Package
+  Package,
+  RefreshCw,
+  Check,
+  Baby,
+  KeyRound,
 } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 import { NavButton } from "./NavButton";
@@ -259,6 +264,15 @@ export function StartScreen() {
     addCustomBrush,
     showProjectSettings,
     setShowProjectSettings,
+    hasSavedState,
+    restoreFromLocalStorage,
+    loadLocalProject,
+    deleteLocalProject,
+    setShowAccountModal,
+    isKidsMode,
+    setIsKidsMode,
+    kidsModePin,
+    setKidsModePin,
   } = useStore();
 
   const t = (key: string, defaultValue?: string) => getTranslation(key, language || "pt") || defaultValue || key;
@@ -279,6 +293,59 @@ export function StartScreen() {
   const [selectedLocalBrushId, setSelectedLocalBrushId] = useState("");
   const [brushShareName, setBrushShareName] = useState("");
   const [brushShareDesc, setBrushShareDesc] = useState("");
+
+  const [localDraftsList, setLocalDraftsList] = useState<any[]>([]);
+
+  const handlePinSubmit = () => {
+    if (pinAction === 'disable') {
+      if (inputPin === kidsModePin) {
+        setIsKidsMode(false);
+        setShowPinModal(false);
+        setInputPin('');
+        setPinError('');
+      } else {
+        setPinError('Senha incorreta!');
+      }
+    } else if (pinAction === 'change_pin') {
+      if (inputPin === kidsModePin) {
+        if (newPin.length >= 4) {
+          setKidsModePin(newPin);
+          setShowPinModal(false);
+          setInputPin('');
+          setNewPin('');
+          setPinError('');
+          alert('Senha alterada com sucesso!');
+        } else {
+          setPinError('A nova senha deve ter pelo menos 4 dígitos');
+        }
+      } else {
+        setPinError('Senha atual incorreta!');
+      }
+    }
+  };
+
+  const refreshLocalDrafts = async () => {
+    try {
+      const dbDrafts = await getAllLocalDrafts();
+      const localListStr = localStorage.getItem("local_projects_drafts");
+      const localList = localListStr ? JSON.parse(localListStr) : [];
+      
+      const map = new Map<string, any>();
+      localList.forEach((item: any) => { if (item.id) map.set(item.id, item); });
+      dbDrafts.forEach((item: any) => { if (item.id) map.set(item.id, { ...map.get(item.id), ...item }); });
+      
+      const combined = Array.from(map.values()).sort((a, b) => 
+        new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+      );
+      setLocalDraftsList(combined);
+    } catch (e) {
+      console.warn("Error refreshing local drafts:", e);
+    }
+  };
+
+  useEffect(() => {
+    refreshLocalDrafts();
+  }, [subView]);
 
   useEffect(() => {
     const q = query(
@@ -310,46 +377,37 @@ export function StartScreen() {
 
   useEffect(() => {
     if (tutorialCompleted) {
-      const hasSeen = localStorage.getItem("seen_whats_new_v2_3_0");
+      const hasSeen = localStorage.getItem("seen_whats_new_v2_3_7");
       if (!hasSeen) {
         setTimeout(() => {
           setShowNoticeModal({
-            title: `Novidades da Versão 2.3.0! ✨🚀`,
-            content: `Olá, artista! Apresentamos grandes melhorias e novas funcionalidades na plataforma:
+            title: `Novidades da Versão 2.3.7! ✨🚀`,
+            content: `Olá, artista! Apresentamos a versão 2.3.7 com novas notificações de estabilidade e salvamento local:
 
-• 🖌️ Sincronização de Pincéis no Multijogador: Agora você pode ver o cursor e o pincel dos seus amigos em tempo real durante uma sessão colaborativa (Ao Vivo)!
+• 📶 Notificação de Conexão Offline: Alerta Toast e Banner automático informando quando a internet cai e confirmando o salvamento local em IndexedDB.
 
-• 🪟 Modo de Edição de Layout: Nova interface para customização! Ao editar o layout, você verá uma tela dedicada. Arraste as janelas que agora fazem "snap" e aperte ENTER ou TAB para confirmar a nova posição.
+• 🚫 Fim da Tela Branca: Otimização para navegadores legados e conexões lentas com tela de carregamento dark nativa.
 
-• 👤 Nova Interface de Perfil (estilo YouTube): Acesse o perfil completo de qualquer artista.
+• 💾 Persistência Garantida: Seus rascunhos são armazenados com segurança diretamente no navegador sem limites estritos de cota.
 
-• 🎨 Temas Funcionais: Alternância de temas atualizada.
-
-• 🎮 Minijogos Funcionais: Adicionados novos minijogos para relaxar enquanto desenha!
+• 🧹 Interface Limpa: Remoção de botões não utilizados e menus de animação contextualizados.
 
 -----------------------------
 
 📜 HISTÓRICO DE VERSÕES:
 
-• Versão 2.3.0 (Atual)
+• Versão 2.3.7 (Atual)
+  - Notificações de rede offline com aviso de salvamento local
+  - Removida tela branca para browsers antigos
+  - Limpeza de interface e salvamento local IndexedDB
+
+• Versão 2.3.0
   - Visualização em tempo real de pincéis no multijogador
   - Modo reformulado para customização de layout com atalhos de confirmação
-  - Minijogos funcionais
   - Fixação magnética de painéis
-
-• Versão 2.2.2
-  - Nova Interface de Perfil (estilo YouTube)
-  - Temas Funcionais
-  - Tradução completa
-  - Melhorias no Meu Perfil
-
-• Versão 2.2.1
-  - Publicação de animações em vídeo
-  - Exclusão rápida de keyframes na timeline
-  - Sincronização do Undo/Redo no multijogador
 `
           });
-          localStorage.setItem("seen_whats_new_v2_3_0", "true");
+          localStorage.setItem("seen_whats_new_v2_3_7", "true");
         }, 800);
       }
     }
@@ -1265,6 +1323,11 @@ export function StartScreen() {
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [showMoveToFolderModal, setShowMoveToFolderModal] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [inputPin, setInputPin] = useState("");
+  const [pinAction, setPinAction] = useState<"disable" | "change_pin" | null>(null);
+  const [pinError, setPinError] = useState("");
+  const [newPin, setNewPin] = useState("");
   const [showNoticeModal, setShowNoticeModal] = useState<{
     title: string;
     content: string;
@@ -1284,6 +1347,18 @@ export function StartScreen() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [localProjects, setLocalProjects] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("local_projects_drafts");
+      if (saved) {
+        setLocalProjects(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error("Error reading local projects:", e);
+    }
+  }, [hasSavedState]);
 
   const handleLikeOrDislike = async (artId: string, type: "like" | "dislike", currentArtData: any, collectionName: string = "published") => {
     if (!user) {
@@ -1450,6 +1525,47 @@ export function StartScreen() {
     alert(`Material "${material.title}" importado como uma nova camada no editor!`);
   };
 
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const longPressTimerRef = useRef<Record<string, any>>({});
+  const isLongPressActiveRef = useRef<Set<string>>(new Set());
+
+  const handlePressStart = (id: string) => {
+    if (longPressTimerRef.current[id]) {
+      clearTimeout(longPressTimerRef.current[id]);
+    }
+    longPressTimerRef.current[id] = setTimeout(() => {
+      isLongPressActiveRef.current.add(id);
+      setSelectedProjects((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      if (typeof window !== "undefined" && window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(60);
+      }
+    }, 450);
+  };
+
+  const handlePressEnd = (id: string) => {
+    if (longPressTimerRef.current[id]) {
+      clearTimeout(longPressTimerRef.current[id]);
+      delete longPressTimerRef.current[id];
+    }
+  };
+
+  const handleItemClick = (id: string, onNormalClick: () => void) => {
+    if (isLongPressActiveRef.current.has(id)) {
+      isLongPressActiveRef.current.delete(id);
+      return;
+    }
+    if (selectedProjects.size > 0) {
+      toggleSelectProject(id);
+    } else {
+      onNormalClick();
+    }
+  };
+
   const toggleSelectProject = (projectId: string) => {
     setSelectedProjects((prev) => {
       const next = new Set(prev);
@@ -1460,8 +1576,16 @@ export function StartScreen() {
   };
 
   const createFolder = async () => {
-    const { createFolderInFirestore } = useStore.getState();
-    await createFolderInFirestore("Nova Pasta");
+    if (!user) {
+      alert("Faça login para criar pastas e organizar seus projetos na nuvem!");
+      setSubView("login");
+      return;
+    }
+    const folderName = prompt("Digite o nome da nova pasta:", "Minha Pasta");
+    if (folderName && folderName.trim()) {
+      const { createFolderInFirestore } = useStore.getState();
+      await createFolderInFirestore(folderName.trim());
+    }
   };
 
   const handleRenameFolder = async (id: string, currentName: string) => {
@@ -1470,22 +1594,36 @@ export function StartScreen() {
       await renameFolder(id, newName);
     }
   };
+
   const selectAll = () => {
-    if (selectedProjects.size === firebaseProjects.length)
+    const allLocalIds = localDraftsList.map((d: any) => d.id);
+    const allCloudIds = firebaseProjects.map((p: any) => p.id);
+    const totalIds = Array.from(new Set([...allLocalIds, ...allCloudIds]));
+
+    if (selectedProjects.size === totalIds.length && totalIds.length > 0) {
       setSelectedProjects(new Set());
-    else setSelectedProjects(new Set(firebaseProjects.map((p: any) => p.id)));
+    } else {
+      setSelectedProjects(new Set(totalIds));
+    }
   };
 
   const deleteSelected = async () => {
     if (selectedProjects.size === 0) return;
+    if (!confirm(`Deseja mesmo excluir os ${selectedProjects.size} itens selecionados?`)) return;
 
     try {
       setLoading(true);
-      await Promise.all(
-        Array.from(selectedProjects).map((id: string) =>
-          deleteProjectFromFirestore(id, "all"),
-        ),
-      );
+      const selectedArray = Array.from(selectedProjects) as string[];
+      
+      for (const id of selectedArray) {
+        if (localDraftsList.some((d) => d.id === id)) {
+          await deleteLocalProject(id);
+        }
+        if (firebaseProjects.some((p) => p.id === id)) {
+          await deleteProjectFromFirestore(id, "all");
+        }
+      }
+      await refreshLocalDrafts();
       setSelectedProjects(new Set());
     } catch (error) {
       console.error("Erro ao deletar projetos:", error);
@@ -2048,39 +2186,30 @@ export function StartScreen() {
         <div className="flex items-center gap-4 text-zinc-400">
           <button
             onClick={() => setShowNoticeModal({
-              title: `O que há de novo? - Versão 2.3.0 ✨🚀`,
-              content: `Olá, artista! Apresentamos grandes melhorias e novas funcionalidades na plataforma:
+              title: `O que há de novo? - Versão 2.3.7 ✨🚀`,
+              content: `Olá, artista! Apresentamos a versão 2.3.7 com novas notificações de estabilidade e salvamento local:
 
-• 🖌️ Sincronização de Pincéis no Multijogador: Agora você pode ver o cursor e o pincel dos seus amigos em tempo real durante uma sessão colaborativa (Ao Vivo)!
+• 📶 Notificação de Conexão Offline: Alerta Toast e Banner automático informando quando a internet cai e confirmando o salvamento local em IndexedDB.
 
-• 🪟 Modo de Edição de Layout: Nova interface para customização! Ao editar o layout, você verá uma tela dedicada. Arraste as janelas que agora fazem "snap" e aperte ENTER ou TAB para confirmar a nova posição.
+• 🚫 Fim da Tela Branca: Otimização para navegadores legados e conexões lentas com tela de carregamento dark nativa.
 
-• 👤 Nova Interface de Perfil (estilo YouTube): Acesse o perfil completo de qualquer artista.
+• 💾 Persistência Garantida: Seus rascunhos são armazenados com segurança diretamente no navegador sem limites estritos de cota.
 
-• 🎨 Temas Funcionais: Alternância de temas atualizada.
-
-• 🎮 Minijogos Funcionais: Adicionados novos minijogos para relaxar enquanto desenha!
+• 🧹 Interface Limpa: Remoção de botões não utilizados e menus de animação contextualizados.
 
 -----------------------------
 
 📜 HISTÓRICO DE VERSÕES:
 
-• Versão 2.3.0 (Atual)
+• Versão 2.3.7 (Atual)
+  - Notificações de rede offline com aviso de salvamento local
+  - Removida tela branca para browsers antigos
+  - Limpeza de interface e salvamento local IndexedDB
+
+• Versão 2.3.0
   - Visualização em tempo real de pincéis no multijogador
   - Modo reformulado para customização de layout com atalhos de confirmação
-  - Minijogos funcionais
-  - Fixação magnética de painéis
-
-• Versão 2.2.2
-  - Nova Interface de Perfil (estilo YouTube)
-  - Temas Funcionais
-  - Tradução completa
-  - Melhorias no Meu Perfil
-
-• Versão 2.2.1
-  - Publicação de animações em vídeo
-  - Exclusão rápida de keyframes na timeline
-  - Sincronização do Undo/Redo no multijogador`
+  - Fixação magnética de painéis`
             })}
             className="flex items-center gap-1.5 bg-indigo-950/40 text-indigo-400 border border-indigo-900/60 hover:bg-indigo-900/50 hover:text-white px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
           >
@@ -2684,19 +2813,102 @@ export function StartScreen() {
                   <h2 className="text-sm font-bold">{t("continue_drawing")}</h2>
                   <ChevronDown size={18} className="text-zinc-500" />
                 </div>
-                <button className="text-[11px] text-blue-400 font-medium">
-                  {t("open_other_files")}
-                </button>
+                {hasSavedState && (
+                  <button 
+                    onClick={async () => {
+                      await restoreFromLocalStorage();
+                      setAppView("editor");
+                    }}
+                    className="text-[11px] text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Play size={12} />
+                    Continuar Desenho Salvo
+                  </button>
+                )}
               </div>
               <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-                {firebaseProjects.length > 0 ? (
-                  firebaseProjects.slice(0, 3).map((p) => (
+                {/* 1. Card for active local draft */}
+                {hasSavedState && (
+                  <div
+                    onClick={async () => {
+                      await restoreFromLocalStorage();
+                      setAppView("editor");
+                    }}
+                    className="flex flex-col items-center gap-2 shrink-0 cursor-pointer group"
+                  >
+                    <div className="w-40 h-52 bg-gradient-to-br from-indigo-900/40 to-[#2d2d2d] rounded-xl shadow-lg overflow-hidden relative border-2 border-indigo-500/60 group-hover:border-indigo-400 transition-all flex flex-col justify-between p-3">
+                      <div className="flex justify-between items-start">
+                        <span className="bg-indigo-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow">
+                          Rascunho Atual
+                        </span>
+                      </div>
+                      <div className="flex-1 flex items-center justify-center my-2">
+                        <Brush size={40} className="text-indigo-400 group-hover:scale-110 transition-transform" />
+                      </div>
+                      <div className="bg-black/60 backdrop-blur-sm p-2 rounded-lg text-center border border-white/10">
+                        <span className="text-[11px] font-extrabold text-white block truncate">Continuar Editando</span>
+                        <span className="text-[9px] text-indigo-300">Autossalvo</span>
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-indigo-300">
+                      Última Sessão
+                    </span>
+                  </div>
+                )}
+
+                {/* 2. Local Projects (for non-logged-in & logged-in users) */}
+                {localProjects.length > 0 &&
+                  localProjects.slice(0, 4).map((lp: any) => (
+                    <div
+                      key={lp.id}
+                      onClick={async () => {
+                        const { loadLocalProject } = useStore.getState();
+                        await loadLocalProject(lp.id);
+                        setAppView("editor");
+                      }}
+                      className="flex flex-col items-center gap-2 shrink-0 cursor-pointer group"
+                    >
+                      <div className="w-40 h-52 bg-[#2d2d2d] rounded-xl shadow-lg overflow-hidden relative border border-zinc-800 group-hover:border-indigo-500 transition-colors">
+                        {lp.thumbnail ? (
+                          <img
+                            src={lp.thumbnail}
+                            alt={lp.name}
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-zinc-700">
+                            <Brush size={48} />
+                          </div>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const { deleteLocalProject } = useStore.getState();
+                            deleteLocalProject(lp.id);
+                            setLocalProjects((prev) => prev.filter((item) => item.id !== lp.id));
+                          }}
+                          className="absolute top-2 right-2 bg-black/60 p-1.5 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-lg"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <span className="text-xs font-bold text-zinc-400 truncate max-w-[150px]">
+                        {lp.name || "Desenho Local"}
+                      </span>
+                    </div>
+                  ))
+                }
+
+                {/* 3. Cloud / Firebase Projects if logged in */}
+                {firebaseProjects.length > 0 &&
+                  firebaseProjects.slice(0, 4).map((p) => (
                     <div
                       key={p.id}
                       onClick={() => loadProjectFromFirestore(p.id)}
                       className="flex flex-col items-center gap-2 shrink-0 cursor-pointer group"
                     >
-                      <div className="w-40 h-52 bg-[#2d2d2d] rounded shadow-lg overflow-hidden relative border border-zinc-800 group-hover:border-indigo-500 transition-colors">
+                      <div className="w-40 h-52 bg-[#2d2d2d] rounded-xl shadow-lg overflow-hidden relative border border-zinc-800 group-hover:border-indigo-500 transition-colors">
                         {p.thumbnail ? (
                           <img
                             src={p.thumbnail}
@@ -2719,26 +2931,20 @@ export function StartScreen() {
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      <span className="text-xs font-bold text-zinc-400">
+                      <span className="text-xs font-bold text-zinc-400 truncate max-w-[150px]">
                         {p.name || "Sem título"}
                       </span>
                     </div>
                   ))
-                ) : (
-                  <div className="flex flex-col items-center gap-4 py-8 px-4 w-full bg-[#121212] rounded-xl border border-zinc-800">
-                    <LayoutGrid size={48} className="text-zinc-800" />
-                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">
-                      Seus projetos aparecerão aqui
-                    </p>
-                  </div>
-                )}
-                {/* Floating "Publish" button for the first project as a shortcut */}
-                {firebaseProjects.length > 0 && (
+                }
+
+                {/* Shortcut button to open publish modal */}
+                {(firebaseProjects.length > 0 || hasSavedState || localProjects.length > 0) && (
                   <div
                     className="flex flex-col items-center gap-2 shrink-0 cursor-pointer group"
                     onClick={() => setShowPublishModal(true)}
                   >
-                    <div className="w-40 h-52 bg-indigo-600/20 rounded shadow-lg flex flex-col items-center justify-center gap-2 border border-indigo-500/30 hover:bg-indigo-600/30 transition-all">
+                    <div className="w-40 h-52 bg-indigo-600/20 rounded-xl shadow-lg flex flex-col items-center justify-center gap-2 border border-indigo-500/30 hover:bg-indigo-600/30 transition-all">
                       <Upload className="text-indigo-400" size={32} />
                       <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">
                         Publicar Arte
@@ -2748,12 +2954,12 @@ export function StartScreen() {
                   </div>
                 )}
 
-                {/* Generic project icon shown in screenshot */}
+                {/* Generic project icon */}
                 <div
                   className="flex flex-col items-center gap-2 shrink-0 cursor-pointer group"
                   onClick={() => setSubView("projects")}
                 >
-                  <div className="w-40 h-52 bg-[#2d2d2d] rounded shadow-lg flex flex-col items-center justify-center gap-3 border border-zinc-800 hover:border-zinc-700 transition-colors">
+                  <div className="w-40 h-52 bg-[#2d2d2d] rounded-xl shadow-lg flex flex-col items-center justify-center gap-3 border border-zinc-800 hover:border-zinc-700 transition-colors">
                     <LayoutGrid size={48} className="text-zinc-700" />
                     <span className="text-xs font-bold text-zinc-500">
                       Projetos
@@ -3158,24 +3364,23 @@ export function StartScreen() {
                 </button>
               </div>
 
-              <div className="flex items-center justify-between text-zinc-400 py-2 border-b border-zinc-800">
-                <div className="flex gap-4">
+              <div className="flex items-center justify-between text-zinc-400 py-2 border-b border-zinc-800 relative">
+                <div className="flex items-center gap-3">
                   <button
                     onClick={selectAll}
                     className={twMerge(
-                      "transition-colors",
-                      selectedProjects.size === firebaseProjects.length &&
-                        firebaseProjects.length > 0
-                        ? "text-indigo-400"
-                        : "text-zinc-400",
+                      "p-1 rounded hover:bg-zinc-800 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold",
+                      selectedProjects.size > 0 ? "text-indigo-400 bg-indigo-950/40" : "text-zinc-400"
                     )}
+                    title="Selecionar Todos"
                   >
                     <CheckSquare size={18} />
+                    {selectedProjects.size > 0 && <span>{selectedProjects.size} selecionado(s)</span>}
                   </button>
                   <button
                     onClick={createFolder}
-                    className="hover:text-white transition-colors"
-                    title={t("create_new_folder")}
+                    className="p-1 rounded hover:bg-zinc-800 hover:text-white transition-colors cursor-pointer"
+                    title={t("create_new_folder", "Criar nova pasta")}
                   >
                     <Folder size={18} />
                   </button>
@@ -3194,7 +3399,7 @@ export function StartScreen() {
                         }
                       }}
                       title="Excluir pasta atual"
-                      className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 text-[11px] font-bold ml-2"
+                      className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 text-[11px] font-bold ml-2 cursor-pointer"
                     >
                       <Trash2 size={16} />
                       <span>Excluir Pasta</span>
@@ -3203,24 +3408,82 @@ export function StartScreen() {
                   {selectedProjects.size > 0 && (
                     <button
                       onClick={deleteSelected}
-                      className="text-red-400 hover:text-red-300 transition-colors"
+                      className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 text-xs font-bold p-1 rounded hover:bg-red-950/40 cursor-pointer"
                       title="Excluir projetos selecionados"
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={16} />
+                      <span>Excluir</span>
                     </button>
                   )}
                 </div>
-                <div className="flex gap-4">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowSearchInput(!showSearchInput)}
                     className={twMerge(
-                      "hover:text-white transition-colors",
-                      showSearchInput && "text-indigo-400",
+                      "p-1.5 rounded hover:bg-zinc-800 hover:text-white transition-colors cursor-pointer",
+                      showSearchInput && "text-indigo-400 bg-zinc-800",
                     )}
+                    title="Pesquisar projetos"
                   >
                     <Search size={18} />
                   </button>
-                  <MoreVertical size={18} />
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowMoreMenu(!showMoreMenu)}
+                      className={twMerge(
+                        "p-1.5 rounded hover:bg-zinc-800 hover:text-white transition-colors cursor-pointer",
+                        showMoreMenu && "text-indigo-400 bg-zinc-800",
+                      )}
+                      title="Mais opções"
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+
+                    {showMoreMenu && (
+                      <div className="absolute right-0 top-9 z-[250] bg-[#222225] border border-zinc-700/80 shadow-2xl rounded-xl p-1.5 w-56 flex flex-col gap-1 text-xs text-zinc-200 animate-in fade-in-50 zoom-in-95">
+                        <button
+                          onClick={() => {
+                            selectAll();
+                            setShowMoreMenu(false);
+                          }}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-zinc-800 text-left font-medium transition-colors cursor-pointer"
+                        >
+                          <CheckSquare size={16} className="text-indigo-400" />
+                          <span>{selectedProjects.size > 0 ? "Desmarcar Todos" : "Selecionar Todos"}</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            createFolder();
+                            setShowMoreMenu(false);
+                          }}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-zinc-800 text-left font-medium transition-colors cursor-pointer"
+                        >
+                          <Folder size={16} className="text-amber-400" />
+                          <span>Criar Nova Pasta</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowSearchInput(!showSearchInput);
+                            setShowMoreMenu(false);
+                          }}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-zinc-800 text-left font-medium transition-colors cursor-pointer"
+                        >
+                          <Search size={16} className="text-emerald-400" />
+                          <span>{showSearchInput ? "Ocultar Pesquisa" : "Pesquisar Projetos"}</span>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            await refreshLocalDrafts();
+                            setShowMoreMenu(false);
+                          }}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-zinc-800 text-left font-medium transition-colors cursor-pointer"
+                        >
+                          <RefreshCw size={16} className="text-blue-400" />
+                          <span>Atualizar Lista</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -3396,37 +3659,166 @@ export function StartScreen() {
             <div className="flex-1 bg-[#121212] overflow-hidden flex flex-col">
               <div className="px-4 py-2 flex items-center justify-between">
                 <h2 className="text-xl font-bold">{t("continue_drawing")}</h2>
-                <button
-                  onClick={() => alert("Import functionality coming soon...")}
-                  className="bg-transparent border border-zinc-700 px-6 py-1 rounded-full text-xs font-bold hover:bg-zinc-700 transition-colors"
-                >
-                  Importar
-                </button>
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 pb-12">
-                {!user ? (
-                  <div className="flex flex-col items-center justify-center h-full py-20 text-center gap-4">
-                    <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center text-zinc-600">
-                      <Lock size={32} />
+                <div className="flex flex-col gap-6">
+                  {!user && (
+                    <div className="bg-gradient-to-r from-indigo-900/60 to-purple-900/60 border border-indigo-500/30 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-sm shadow-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
+                          <Cloud className="text-indigo-400" size={22} />
+                        </div>
+                        <div>
+                          <div className="font-bold text-white text-sm">Sincronização na Nuvem</div>
+                          <div className="text-xs text-zinc-300">Faça login para salvar na nuvem, publicar na comunidade e acessar em qualquer lugar.</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setSubView("login")}
+                        className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-full text-xs shrink-0 transition-all shadow-md cursor-pointer"
+                      >
+                        Entrar / Registrar
+                      </button>
                     </div>
-                    <div>
-                      <h3 className="font-bold">
-                        Faça login para ver seus projetos
+                  )}
+
+                  {/* Local drafts / browser saved projects */}
+                  {localDraftsList.length > 0 && (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+                          <Clock size={16} className="text-indigo-400" />
+                          Desenhos Salvos Neste Navegador ({localDraftsList.length})
+                        </h3>
+                        {selectedProjects.size === 0 && (
+                          <span className="text-[10px] text-zinc-500 italic hidden sm:inline">
+                            (Pressione e segure em um item para selecionar)
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        {localDraftsList
+                          .filter((draft) => (draft.name || "Desenho Recente").toLowerCase().includes(searchTerm.toLowerCase()))
+                          .map((draft) => {
+                            const isSelected = selectedProjects.has(draft.id);
+                            return (
+                              <div
+                                key={draft.id}
+                                className="relative group flex flex-col gap-1.5 select-none"
+                                onMouseDown={() => handlePressStart(draft.id)}
+                                onMouseUp={() => handlePressEnd(draft.id)}
+                                onMouseLeave={() => handlePressEnd(draft.id)}
+                                onTouchStart={() => handlePressStart(draft.id)}
+                                onTouchEnd={() => handlePressEnd(draft.id)}
+                                onTouchCancel={() => handlePressEnd(draft.id)}
+                                onClick={() => handleItemClick(draft.id, () => loadLocalProject(draft.id))}
+                              >
+                                <div
+                                  className={twMerge(
+                                    "aspect-square bg-[#2d2d2d] rounded-lg border-2 overflow-hidden relative shadow-lg cursor-pointer transition-all",
+                                    isSelected
+                                      ? "border-indigo-500 ring-2 ring-indigo-500/50 bg-indigo-950/30"
+                                      : "border-zinc-700 hover:border-indigo-500"
+                                  )}
+                                >
+                                  {draft.thumbnail ? (
+                                    <img
+                                      src={draft.thumbnail}
+                                      alt={draft.name || "Desenho Recente"}
+                                      className={twMerge(
+                                        "w-full h-full object-contain transition-transform",
+                                        !isSelected && "group-hover:scale-105"
+                                      )}
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-zinc-600 bg-zinc-900/50">
+                                      <Brush size={32} />
+                                    </div>
+                                  )}
+
+                                  {/* Selection Checkbox */}
+                                  {(selectedProjects.size > 0 || isSelected) && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleSelectProject(draft.id);
+                                      }}
+                                      className={twMerge(
+                                        "absolute top-2 left-2 w-6 h-6 rounded-md flex items-center justify-center transition-all z-20 cursor-pointer shadow-md",
+                                        isSelected
+                                          ? "bg-indigo-600 text-white"
+                                          : "bg-black/70 border border-zinc-400 text-transparent hover:border-indigo-400"
+                                      )}
+                                    >
+                                      <CheckSquare size={14} />
+                                    </button>
+                                  )}
+
+                                  {/* Action Buttons when not in multi-select mode */}
+                                  {selectedProjects.size === 0 && (
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (confirm("Deseja excluir este rascunho local?")) {
+                                          deleteLocalProject(draft.id);
+                                          await refreshLocalDrafts();
+                                        }
+                                      }}
+                                      className="absolute top-2 right-2 bg-black/70 p-1.5 rounded-full text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-red-600 shadow-lg z-10 cursor-pointer"
+                                      title="Excluir rascunho local"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                  {selectedProjects.size === 0 && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        loadLocalProject(draft.id);
+                                      }}
+                                      className="absolute bottom-2 right-2 bg-indigo-600 hover:bg-indigo-500 p-2 rounded-full text-white shadow-lg cursor-pointer transition-all"
+                                      title="Continuar Desenhando"
+                                    >
+                                      <ChevronRight size={16} />
+                                    </button>
+                                  )}
+                                </div>
+                                <span className={twMerge(
+                                  "text-[11px] font-bold text-center truncate px-1",
+                                  isSelected ? "text-indigo-400 font-extrabold" : "text-zinc-200"
+                                )}>
+                                  {draft.name || "Desenho Recente"}
+                                </span>
+                                {draft.updatedAt && (
+                                  <span className="text-[9px] text-zinc-500 text-center">
+                                    {new Date(draft.updatedAt).toLocaleDateString("pt-BR")}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
+                  {!user && localDraftsList.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-16 text-center gap-3 bg-[#1e1e1e]/50 border border-zinc-800 rounded-2xl">
+                      <div className="w-14 h-14 bg-zinc-800/80 rounded-full flex items-center justify-center text-zinc-500">
+                        <Brush size={28} />
+                      </div>
+                      <h3 className="font-bold text-sm text-zinc-300">
+                        Nenhum desenho salvo neste navegador ainda
                       </h3>
-                      <p className="text-xs text-zinc-500 max-w-[200px] mt-1">
-                        Sua arte, em qualquer lugar.
+                      <p className="text-xs text-zinc-500 max-w-sm">
+                        Crie um novo desenho ou escolha um modelo acima. Seus desenhos serão salvos automaticamente no seu navegador.
                       </p>
                     </div>
-                    <button
-                      onClick={() => setSubView("login")}
-                      className="px-8 py-2 bg-indigo-600 rounded-full font-bold text-sm"
-                    >
-                      Login
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-4">
+                  )}
+
+                  {user && (
+                    <div className="flex flex-col gap-4">
                     {selectedProjects.size > 0 && (
                       <div className="flex items-center gap-2 bg-[#2d2d2d] p-2 rounded-lg">
                         <button
@@ -3549,77 +3941,116 @@ export function StartScreen() {
                             ?.toLowerCase()
                             .includes(searchTerm.toLowerCase()),
                         )
-                        .map((project) => (
-                          <div
-                            key={project.id}
-                            className="relative group flex flex-col gap-1.5"
-                            onClick={() => toggleSelectProject(project.id)}
-                          >
+                        .map((project) => {
+                          const isSelected = selectedProjects.has(project.id);
+                          return (
                             <div
-                              className={twMerge(
-                                "aspect-square bg-[#2d2d2d] rounded-lg border-2 overflow-hidden relative shadow-lg cursor-pointer",
-                                selectedProjects.has(project.id)
-                                  ? "border-indigo-500"
-                                  : "border-zinc-800",
-                              )}
+                              key={project.id}
+                              className="relative group flex flex-col gap-1.5 select-none"
+                              onMouseDown={() => handlePressStart(project.id)}
+                              onMouseUp={() => handlePressEnd(project.id)}
+                              onMouseLeave={() => handlePressEnd(project.id)}
+                              onTouchStart={() => handlePressStart(project.id)}
+                              onTouchEnd={() => handlePressEnd(project.id)}
+                              onTouchCancel={() => handlePressEnd(project.id)}
+                              onClick={() => handleItemClick(project.id, () => loadProjectFromFirestore(project.id))}
                             >
-                              {project.thumbnail ? (
-                                <img
-                                  src={project.thumbnail}
-                                  alt={project.name}
-                                  className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-zinc-700 bg-zinc-900/50">
-                                  <Brush size={32} />
-                                </div>
-                              )}
-                              {selectedProjects.has(project.id) && (
-                                <div className="absolute top-2 left-2 w-5 h-5 bg-indigo-600 rounded flex items-center justify-center z-10">
-                                  <div className="w-2 h-2 bg-white rounded-full"></div>
-                                </div>
-                              )}
-                              {!selectedProjects.has(project.id) && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteProjectFromFirestore(
-                                      project.id,
-                                      "all",
-                                    );
-                                  }}
-                                  className="absolute top-2 right-2 bg-black/60 p-1.5 rounded-full text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-red-600 shadow-lg z-10"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  loadProjectFromFirestore(project.id);
-                                }}
-                                className="absolute bottom-2 right-2 bg-indigo-600 p-2 rounded-full text-white shadow-lg"
+                              <div
+                                className={twMerge(
+                                  "aspect-square bg-[#2d2d2d] rounded-lg border-2 overflow-hidden relative shadow-lg cursor-pointer transition-all",
+                                  isSelected
+                                    ? "border-indigo-500 ring-2 ring-indigo-500/50 bg-indigo-950/30"
+                                    : "border-zinc-800 hover:border-indigo-500",
+                                )}
                               >
-                                <ChevronRight size={16} />
-                              </button>
+                                {project.thumbnail ? (
+                                  <img
+                                    src={project.thumbnail}
+                                    alt={project.name}
+                                    className={twMerge(
+                                      "w-full h-full object-contain transition-transform",
+                                      !isSelected && "group-hover:scale-105"
+                                    )}
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-zinc-700 bg-zinc-900/50">
+                                    <Brush size={32} />
+                                  </div>
+                                )}
+
+                                {/* Selection Checkbox */}
+                                {(selectedProjects.size > 0 || isSelected) && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleSelectProject(project.id);
+                                    }}
+                                    className={twMerge(
+                                      "absolute top-2 left-2 w-6 h-6 rounded-md flex items-center justify-center transition-all z-20 cursor-pointer shadow-md",
+                                      isSelected
+                                        ? "bg-indigo-600 text-white"
+                                        : "bg-black/70 border border-zinc-400 text-transparent hover:border-indigo-400"
+                                    )}
+                                  >
+                                    <CheckSquare size={14} />
+                                  </button>
+                                )}
+
+                                {selectedProjects.size === 0 && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (confirm("Deseja excluir este projeto na nuvem?")) {
+                                        deleteProjectFromFirestore(
+                                          project.id,
+                                          "all",
+                                        );
+                                      }
+                                    }}
+                                    className="absolute top-2 right-2 bg-black/60 p-1.5 rounded-full text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-red-600 shadow-lg z-10 cursor-pointer"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
+                                {selectedProjects.size === 0 && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      loadProjectFromFirestore(project.id);
+                                    }}
+                                    className="absolute bottom-2 right-2 bg-indigo-600 hover:bg-indigo-500 p-2 rounded-full text-white shadow-lg cursor-pointer transition-all"
+                                  >
+                                    <ChevronRight size={16} />
+                                  </button>
+                                )}
+                              </div>
+                              <span className={twMerge(
+                                "text-[10px] font-bold text-center truncate px-1",
+                                isSelected ? "text-indigo-400 font-extrabold" : "text-zinc-200"
+                              )}>
+                                {project.name}
+                              </span>
                             </div>
-                            <span className="text-[10px] font-bold text-center truncate">
-                              {project.name}
-                            </span>
-                          </div>
-                        ))}
+                          );
+                        })}
                     </div>
                   </div>
                 )}
+                </div>
               </div>
 
-              <div className="p-4 flex justify-center sticky bottom-0 bg-[#121212]">
-                <button className="bg-zinc-800 border border-zinc-700 px-6 py-2 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-zinc-700 transition-all">
-                  <BookOpen size={16} />
-                  Ver lista de projetos
-                </button>
-              </div>
+              {selectedProjects.size > 0 && (
+                <div className="p-4 flex justify-center sticky bottom-0 bg-[#121212] gap-4 animate-in fade-in slide-in-from-bottom-2">
+                  <button 
+                    onClick={selectAll}
+                    className="bg-zinc-800 border border-zinc-700 px-6 py-2 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-zinc-700 transition-all cursor-pointer"
+                  >
+                    <CheckSquare size={16} />
+                    {selectedProjects.size === new Set([...localDraftsList.map(d=>d.id), ...firebaseProjects.map(p=>p.id)]).size && selectedProjects.size > 0 ? "Desmarcar Tudo" : "Selecionar Tudo"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -5187,6 +5618,8 @@ export function StartScreen() {
               </div>
             </div>
 
+
+
             {/* Cloud Progress */}
             <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 space-y-3">
               <div className="flex items-center justify-between text-[11px] text-zinc-500 font-bold uppercase">
@@ -5284,8 +5717,9 @@ export function StartScreen() {
               {
                 titleKey: "assets",
                 items: [
-                  { key: "favorites", icon: <Star size={18} /> },
                   { key: "simple_mode", icon: <Layout size={18} /> },
+                  { key: "kids_mode", icon: <Baby size={18} /> },
+                  { key: "change_password", icon: <KeyRound size={18} /> },
                 ],
               },
             ].map((group, idx) => (
@@ -5312,6 +5746,23 @@ export function StartScreen() {
                           setShowTeamsModal(true);
                         if (itemObj.key === "simple_mode")
                           useStore.getState().setSimpleMode(!useStore.getState().simpleMode);
+                        if (itemObj.key === "kids_mode") {
+                          if (isKidsMode) {
+                            setPinAction("disable");
+                            setInputPin("");
+                            setPinError("");
+                            setShowPinModal(true);
+                          } else {
+                            setIsKidsMode(true);
+                          }
+                        }
+                        if (itemObj.key === "change_password") {
+                          setPinAction("change_pin");
+                          setInputPin("");
+                          setNewPin("");
+                          setPinError("");
+                          setShowPinModal(true);
+                        }
                       }}
                       className="w-full flex items-center justify-between py-3.5 border-t border-zinc-800/80 group"
                     >
@@ -5324,6 +5775,9 @@ export function StartScreen() {
                           {itemObj.key === "simple_mode" && useStore.getState().simpleMode && (
                             <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.5 rounded-full font-bold uppercase">Ativo</span>
                           )}
+                          {itemObj.key === "kids_mode" && isKidsMode && (
+                            <span className="text-[9px] bg-pink-500 text-white px-1.5 py-0.5 rounded-full font-bold uppercase">Ativo</span>
+                          )}
                         </span>
                       </div>
                       <div className="flex items-center gap-3">
@@ -5331,6 +5785,14 @@ export function StartScreen() {
                           <div className={`w-7 h-4 rounded-full transition-colors relative ${useStore.getState().simpleMode ? 'bg-indigo-600' : 'bg-zinc-700'}`}>
                             <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${useStore.getState().simpleMode ? 'left-3.5' : 'left-0.5'}`} />
                           </div>
+                        )}
+                        {itemObj.key === "kids_mode" && (
+                          <div className={`w-7 h-4 rounded-full transition-colors relative ${isKidsMode ? 'bg-pink-500' : 'bg-zinc-700'}`}>
+                            <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${isKidsMode ? 'translate-x-3.5' : 'left-0.5'}`} />
+                          </div>
+                        )}
+                        {itemObj.key === "change_password" && (
+                          <span className="text-[10px] bg-zinc-700 text-white px-2 py-1 rounded font-bold">Alterar</span>
                         )}
                         <ChevronRight size={16} className="text-zinc-600" />
                       </div>
@@ -5999,6 +6461,74 @@ export function StartScreen() {
           }
         />
       </div>
+
+      {/* Pin Modal for Kids Mode */}
+      {showPinModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[2000] p-6 animate-in fade-in">
+          <div className="bg-[#1a1a1a] border border-zinc-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl relative animate-in zoom-in-95">
+            <button 
+              onClick={() => setShowPinModal(false)}
+              className="absolute top-4 right-4 text-zinc-400 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-4 text-amber-400 border border-zinc-700">
+                <Lock size={28} />
+              </div>
+              <h2 className="text-xl font-bold text-white">
+                {pinAction === 'disable' ? 'Desativar Modo Infantil' : 'Alterar Senha'}
+              </h2>
+              <p className="text-sm text-zinc-400 mt-2">
+                {pinAction === 'disable' 
+                  ? 'Digite a senha dos responsáveis para sair do modo infantil.' 
+                  : 'Digite a senha atual e a nova senha.'}
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">
+                  Senha Atual
+                </label>
+                <input 
+                  type="password" 
+                  maxLength={4}
+                  value={inputPin}
+                  onChange={e => setInputPin(e.target.value)}
+                  placeholder="****"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-center text-2xl tracking-[0.5em] focus:border-indigo-500 outline-none transition-colors text-white"
+                />
+              </div>
+
+              {pinAction === 'change_pin' && (
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">
+                    Nova Senha (4 dígitos)
+                  </label>
+                  <input 
+                    type="password" 
+                    maxLength={4}
+                    value={newPin}
+                    onChange={e => setNewPin(e.target.value)}
+                    placeholder="****"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-center text-2xl tracking-[0.5em] focus:border-indigo-500 outline-none transition-colors text-white"
+                  />
+                </div>
+              )}
+
+              {pinError && <p className="text-red-400 text-xs text-center font-medium">{pinError}</p>}
+
+              <button 
+                onClick={handlePinSubmit}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors mt-2 cursor-pointer"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

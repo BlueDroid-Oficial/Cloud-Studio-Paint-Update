@@ -1,13 +1,34 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR" style="background-color: #121212; color: #ffffff;">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="https://cdn.phototourl.com/free/2026-07-14-7910cc9f-af8a-4a62-93bd-fd9d4bb2a0fc.png" />
-    <title>Cloud Studio Paint | Start</title>
+    <title>Cloud Studio Paint</title>
+    <style>
+      html, body {
+        background-color: #121212 !important;
+        color: #ffffff !important;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      @keyframes studioSpin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
   </head>
-  <body>
-    <div id="root"></div>
+  <body style="background-color: #121212; color: #ffffff;">
+    <div id="root">
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; width: 100vw; background-color: #121212; color: #a1a1aa;">
+        <div style="width: 44px; height: 44px; border: 3px solid #27272a; border-top-color: #6366f1; border-radius: 50%; animation: studioSpin 0.8s linear infinite;"></div>
+        <div style="margin-top: 18px; font-size: 14px; font-weight: 700; color: #f4f4f5; letter-spacing: 0.5px;">Studio Paint</div>
+        <div style="margin-top: 6px; font-size: 11px; color: #71717a;">Carregando ambiente de pintura...</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

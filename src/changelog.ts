@@ -7,6 +7,37 @@ import { ChangelogRelease } from './types';
 
 export const CHANGELOG_DATA: ChangelogRelease[] = [
   {
+    id: 'rel_2_3_7',
+    version: 'v2.3.7',
+    date: '2026-08-25',
+    title: 'Offline Stability & Legacy Render Engine',
+    description: 'Introduces automatic network loss detection, local IndexedDB persistence banners, legacy browser white screen prevention, and UI cleanup.',
+    isReleased: true,
+    author: {
+      name: 'Studio Team',
+      role: 'Core Systems Lead',
+      avatarInitials: 'ST'
+    },
+    items: [
+      {
+        id: 'item_2_3_7_1',
+        title: 'Network Loss & Local Save Toast',
+        description: 'Automatic Toast notification detecting internet disconnection and confirming client-side persistence.',
+        type: 'feature',
+        tags: ['Offline', 'IndexedDB', 'Toast'],
+        details: 'When network is disconnected, a floating amber toast alerts the user that all edits remain safely stored locally in IndexedDB.'
+      },
+      {
+        id: 'item_2_3_7_2',
+        title: 'Legacy Browser White Screen Removal',
+        description: 'Embedded dark background theme styles directly in index.html to prevent white flash during slow script initialization.',
+        type: 'fix',
+        tags: ['Performance', 'Legacy-Browsers', 'Splash'],
+        details: 'Legacy browsers and slower network connections receive a styled dark studio loading state instead of a blank white screen.'
+      }
+    ]
+  },
+  {
     id: 'rel_2_4_0',
     version: 'v2.4.0',
     date: '2026-07-13',

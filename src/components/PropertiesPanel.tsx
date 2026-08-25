@@ -3,13 +3,15 @@ import { useStore, getInterpolatedProperties } from '../store/useStore';
 import { HexColorPicker } from 'react-colorful';
 import { RulerPanel } from './RulerPanel';
 import { Zap, RefreshCcw, ArrowRight, ArrowLeft, Trash, Copy, Shuffle, PlayCircle } from 'lucide-react';
-import { Eye, Plus, Trash2, Scissors, Save, Sliders, Layers as LayersIcon, Download, FolderPlus, Folder, Edit2, Grid, Sparkles, Gamepad2, Check, Type, Upload, ChevronDown, ChevronRight } from 'lucide-react';
+import { Eye, Plus, Trash2, Scissors, Save, Sliders, Layers as LayersIcon, Download, FolderPlus, Folder, Edit2, Grid, Sparkles, Gamepad2, Check, Type, Upload, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { applyFilter } from '../lib/filters';
 import { getTranslation } from '../lib/translations';
+import { PinterestColoringModal } from './PinterestColoringModal';
 
 export function PropertiesPanel() {
+  const [showPinterestModal, setShowPinterestModal] = useState(false);
   const { 
     tool,
     color, setColor, 
@@ -77,13 +79,24 @@ export function PropertiesPanel() {
     showGrid, setShowGrid,
     gridSize, setGridSize,
     language,
-    currentFrame,
+    animationEnabled,
+    currentFrame, setCurrentFrame,
+    totalFrames, addFrame, removeFrame,
+    fps, setFps,
+    isPlaying, setIsPlaying,
     keyframes,
+    isKidsMode,
   } = useStore();
 
   const t = (key: string) => getTranslation(key, language || "pt");
 
   const [newPresetName, setNewPresetName] = useState('');
+  const [showAnimOptions, setShowAnimOptions] = useState(true);
+  const [showGridSubMenu, setShowGridSubMenu] = useState(false);
+  const [showOnionSkinSubMenu, setShowOnionSkinSubMenu] = useState(false);
+  const [showCanvasSubMenu, setShowCanvasSubMenu] = useState(false);
+  const [showFilterSubMenu, setShowFilterSubMenu] = useState(false);
+  const [showPresetSubMenu, setShowPresetSubMenu] = useState(false);
 
   const handleSavePreset = () => {
     if (newPresetName.trim()) {
@@ -140,6 +153,197 @@ export function PropertiesPanel() {
         </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-hide p-3 space-y-4">
+          {/* Opções da Animação (Animation Options) */}
+          {animationEnabled && (
+            <div className="bg-[#2d2d2d] border border-zinc-800 rounded-lg p-3 space-y-3">
+              <div 
+                onClick={() => setShowAnimOptions(!showAnimOptions)}
+                className="flex items-center justify-between cursor-pointer group select-none"
+              >
+                <div className="flex items-center gap-2">
+                  <Zap size={14} className="text-amber-400" />
+                  <span className="text-[11px] font-bold uppercase text-zinc-200 group-hover:text-white">
+                    Opções da Animação
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-zinc-400 group-hover:text-white">
+                  <span className="text-[9px] font-mono text-indigo-400 font-bold">{currentFrame}/{totalFrames}</span>
+                  <ChevronRight size={14} className={twMerge("transition-transform duration-200", showAnimOptions && "rotate-90")} />
+                </div>
+              </div>
+
+              {showAnimOptions && (
+                <div className="space-y-3 pt-2 border-t border-zinc-800/80 animate-fade-in">
+                  {/* Playback Controls & Frame Indicator */}
+                  <div className="flex items-center justify-between bg-[#1e1e1e] p-2 rounded-md border border-zinc-800/50">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setCurrentFrame(Math.max(1, currentFrame - 1))}
+                        className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
+                        title="Quadro Anterior"
+                      >
+                        <ChevronLeft size={12} />
+                      </button>
+                      <button
+                        onClick={() => setIsPlaying(!isPlaying)}
+                        className={twMerge(
+                          "px-3 py-1 rounded text-[10px] font-bold uppercase transition-all flex items-center gap-1",
+                          isPlaying ? "bg-amber-600 text-white" : "bg-indigo-600 text-white"
+                        )}
+                      >
+                        <PlayCircle size={12} />
+                        {isPlaying ? "Pausar" : "Tocar"}
+                      </button>
+                      <button
+                        onClick={() => setCurrentFrame(Math.min(totalFrames, currentFrame + 1))}
+                        className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
+                        title="Próximo Quadro"
+                      >
+                        <ChevronRight size={12} />
+                      </button>
+                    </div>
+                    <span className="text-[10px] font-mono text-zinc-400">
+                      {fps} FPS
+                    </span>
+                  </div>
+
+                  {/* Speed Slider */}
+                  <div className="space-y-1 bg-[#1e1e1e] p-2 rounded-md border border-zinc-800/50">
+                    <div className="flex justify-between text-[9px] text-zinc-400">
+                      <span>Velocidade da Animação</span>
+                      <span className="font-mono text-indigo-300 font-bold">{fps} FPS</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="60"
+                      value={fps}
+                      onChange={(e) => setFps(parseInt(e.target.value) || 12)}
+                      className="w-full h-1 bg-black/20 appearance-none rounded-full accent-indigo-500 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Frame Operations Grid */}
+                  <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">Sub-Menu de Ações ( &gt; )</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      onClick={() => { if (activeLayerId) reverseAnimation(activeLayerId); }}
+                      className="flex items-center gap-1.5 p-2 bg-[#1e1e1e] hover:bg-zinc-800 border border-zinc-800 rounded-md transition-colors text-left group"
+                      title="Inverter a ordem da sequência de quadros"
+                    >
+                      <RefreshCcw size={12} className="text-indigo-400 shrink-0" />
+                      <span className="text-[9px] font-medium text-zinc-300 group-hover:text-white">Inverter</span>
+                    </button>
+                    <button
+                      onClick={() => { if (activeLayerId) pingPongAnimation(activeLayerId); }}
+                      className="flex items-center gap-1.5 p-2 bg-[#1e1e1e] hover:bg-zinc-800 border border-zinc-800 rounded-md transition-colors text-left group"
+                      title="Executar animação em modo Ping-Pong (Vai e Volta)"
+                    >
+                      <PlayCircle size={12} className="text-amber-400 shrink-0" />
+                      <span className="text-[9px] font-medium text-zinc-300 group-hover:text-white">Ping-Pong</span>
+                    </button>
+                    <button
+                      onClick={() => { if (activeLayerId) shiftFramesLeft(activeLayerId); }}
+                      className="flex items-center gap-1.5 p-2 bg-[#1e1e1e] hover:bg-zinc-800 border border-zinc-800 rounded-md transition-colors text-left group"
+                      title="Mover conteúdo um quadro para a esquerda"
+                    >
+                      <ArrowLeft size={12} className="text-zinc-400 shrink-0" />
+                      <span className="text-[9px] font-medium text-zinc-300 group-hover:text-white">Mover Esq</span>
+                    </button>
+                    <button
+                      onClick={() => { if (activeLayerId) shiftFramesRight(activeLayerId); }}
+                      className="flex items-center gap-1.5 p-2 bg-[#1e1e1e] hover:bg-zinc-800 border border-zinc-800 rounded-md transition-colors text-left group"
+                      title="Mover conteúdo um quadro para a direita"
+                    >
+                      <ArrowRight size={12} className="text-zinc-400 shrink-0" />
+                      <span className="text-[9px] font-medium text-zinc-300 group-hover:text-white">Mover Dir</span>
+                    </button>
+                    <button
+                      onClick={() => { if (activeLayerId) copyFrameToAll(activeLayerId); }}
+                      className="flex items-center gap-1.5 p-2 bg-[#1e1e1e] hover:bg-zinc-800 border border-zinc-800 rounded-md transition-colors text-left group"
+                      title="Copiar o quadro selecionado para todos os outros"
+                    >
+                      <Copy size={12} className="text-indigo-400 shrink-0" />
+                      <span className="text-[9px] font-medium text-zinc-300 group-hover:text-white">Copiar P/ Todos</span>
+                    </button>
+                    <button
+                      onClick={() => { if (activeLayerId) randomizeFrames(activeLayerId); }}
+                      className="flex items-center gap-1.5 p-2 bg-[#1e1e1e] hover:bg-zinc-800 border border-zinc-800 rounded-md transition-colors text-left group"
+                      title="Embaralhar a sequência de quadros"
+                    >
+                      <Shuffle size={12} className="text-purple-400 shrink-0" />
+                      <span className="text-[9px] font-medium text-zinc-300 group-hover:text-white">Randomizar</span>
+                    </button>
+                    <button
+                      onClick={() => { layers.forEach(l => clearCurrentFrame(l.id)); }}
+                      className="flex items-center gap-1.5 p-2 bg-[#1e1e1e] hover:bg-red-500/10 border border-zinc-800 hover:border-red-500/30 rounded-md transition-colors text-left group"
+                      title="Limpar o conteúdo do quadro atual"
+                    >
+                      <Trash size={12} className="text-red-400 shrink-0" />
+                      <span className="text-[9px] font-medium text-red-400 group-hover:text-red-300">Limpar Todo</span>
+                    </button>
+                    <button
+                      onClick={() => removeFrame(currentFrame)}
+                      className="flex items-center gap-1.5 p-2 bg-[#1e1e1e] hover:bg-red-500/10 border border-zinc-800 hover:border-red-500/30 rounded-md transition-colors text-left group"
+                      title="Excluir o quadro atual da timeline"
+                    >
+                      <Trash2 size={12} className="text-red-400 shrink-0" />
+                      <span className="text-[9px] font-medium text-red-400 group-hover:text-red-300">Excluir Quadro</span>
+                    </button>
+                  </div>
+
+                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
+                    <span className="text-[9px] text-zinc-400 font-bold uppercase">Novo Quadro</span>
+                    <button
+                      onClick={addFrame}
+                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[9px] font-bold flex items-center gap-1 transition-colors"
+                    >
+                      <Plus size={10} />
+                      Adicionar Quadro
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Kids Mode Special Section: Cores para Crianças & Desenhos Pinterest */}
+          {isKidsMode && (
+            <div className="bg-pink-500/10 border border-pink-500/30 rounded-xl p-3 space-y-3 mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🎨</span>
+                <span className="text-xs font-black text-pink-400 uppercase tracking-wider">Modo Infantil Ativo</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-zinc-300 block mb-1.5 uppercase">Cores para Crianças</span>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {[
+                    "#FF3366", "#FFCC00", "#33CCFF", "#33CC33", "#FF6600",
+                    "#9933FF", "#FF0000", "#00CCCC", "#FFFFFF", "#000000"
+                  ].map((hex) => (
+                    <button
+                      key={hex}
+                      onClick={() => setColor(hex)}
+                      className={twMerge(
+                        "w-full h-8 rounded-lg border-2 shadow transition-transform hover:scale-110 cursor-pointer",
+                        color === hex ? "border-white scale-105 ring-2 ring-pink-500" : "border-black/30"
+                      )}
+                      style={{ backgroundColor: hex }}
+                      title={hex}
+                    />
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPinterestModal(true)}
+                className="w-full py-2.5 bg-pink-600 hover:bg-pink-500 text-white rounded-xl text-xs font-bold shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>✨ Desenhos para Pintar (Pinterest)</span>
+              </button>
+              <PinterestColoringModal isOpen={showPinterestModal} onClose={() => setShowPinterestModal(false)} />
+            </div>
+          )}
+
           {/* Color Picker */}
           {!['eraser', 'pixel_eraser', 'move', 'select-rect'].includes(tool) && (
             <div>
@@ -159,9 +363,13 @@ export function PropertiesPanel() {
           {/* Grid Settings */}
           <div className="space-y-1.5 bg-[#2d2d2d] border border-zinc-800 rounded p-3">
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Grid size={14} className="text-zinc-400" />
-                <span className="text-[11px] text-zinc-400 uppercase font-semibold">{t('grid')}</span>
+              <div 
+                className="flex items-center gap-2 cursor-pointer group select-none"
+                onClick={() => setShowGridSubMenu(!showGridSubMenu)}
+              >
+                <Grid size={14} className="text-zinc-400 group-hover:text-indigo-400 transition-colors" />
+                <span className="text-[11px] text-zinc-400 uppercase font-semibold group-hover:text-white transition-colors">{t('grid')}</span>
+                <ChevronRight size={12} className={twMerge("text-zinc-500 transition-transform duration-200", showGridSubMenu && "rotate-90")} />
               </div>
               <button
                 onClick={() => setShowGrid(!showGrid)}
@@ -181,6 +389,29 @@ export function PropertiesPanel() {
               className="w-full h-1 bg-black/20 appearance-none rounded-full accent-[#4c4cff]"
             />
             <div className="text-[9px] text-zinc-500 text-right">{gridSize}px</div>
+
+            {/* Sub-menu ( > ) options for Grid */}
+            {showGridSubMenu && (
+              <div className="pt-2 border-t border-zinc-800 mt-2 space-y-2 animate-fade-in">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase">Sub-menu de Opções da Grade</span>
+                <div className="grid grid-cols-4 gap-1">
+                  {[8, 16, 32, 64].map((sz) => (
+                    <button
+                      key={sz}
+                      onClick={() => { setGridSize(sz); setShowGrid(true); }}
+                      className={twMerge(
+                        "py-1 rounded text-[9px] font-mono font-bold transition-all border",
+                        gridSize === sz && showGrid
+                          ? "bg-indigo-600 border-indigo-500 text-white"
+                          : "bg-[#1a1a1a] border-zinc-700 text-zinc-400 hover:text-white"
+                      )}
+                    >
+                      {sz}px
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Pixel Art Mode Dashboard */}
@@ -544,30 +775,53 @@ export function PropertiesPanel() {
                     <option value="solid">Solid</option>
                     {['brush', 'eraser'].includes(tool) && (
                       <>
-                        <option value="pencil">Pencil</option>
-                        <option value="charcoal">Charcoal</option>
-                        <option value="spray">Spray</option>
-                        <option value="watercolor">Watercolor</option>
-                        <option value="oil">Oil Paint</option>
-                        <option value="ink">Ink Pen</option>
-                        <option value="crayon">Crayon</option>
-                        <option value="gouache">Gouache</option>
-                        <option value="chalk">Chalk</option>
-                        <option value="pastel">Pastel</option>
-                        <option value="marker">Marker</option>
-                        <option value="sponge">Sponge</option>
-                        <option value="airbrush">Airbrush</option>
-                        <option value="dry-brush">Dry Brush</option>
+                        <option value="pencil">✏️ Lápis / Pencil</option>
+                        <option value="charcoal">✍️ Carvão / Charcoal</option>
+                        <option value="spray">💨 Spray</option>
+                        <option value="watercolor">🎨 Acquarela / Watercolor</option>
+                        <option value="oil">🖌️ Tinta a Óleo / Oil Paint</option>
+                        <option value="ink">🖊️ Nanquim / Ink Pen</option>
+                        <option value="crayon">🖍️ Giz de Cera / Crayon</option>
+                        <option value="gouache">🎨 Guache / Gouache</option>
+                        <option value="chalk">🧱 Giz Espesso / Chalk</option>
+                        <option value="pastel">🌸 Pastel Suave / Pastel</option>
+                        <option value="marker">🖊️ Marcador / Marker</option>
+                        <option value="sponge">🧽 Esponja Texturizada / Sponge</option>
+                        <option value="airbrush">💨 Aerógrafo / Airbrush</option>
+                        <option value="dry-brush">🖌️ Pincel Seco / Dry Brush</option>
+                        <option value="screentone-manga">🏁 Retícula Mangá / Screentone</option>
+                        <option value="stipple">🔴 Pontilhismo / Stipple</option>
+                        <option value="splatter">💦 Respingo Tinta / Splatter</option>
+                        <option value="canvas-grain">🖼️ Grão de Tela / Canvas Grain</option>
+                        <option value="rough-paper">📜 Papel Rústico / Rough Paper</option>
+                        <option value="fur-hair">🐈 Pelagem/Cabelo / Fur & Hair</option>
+                        <option value="cloud-smoke">☁️ Nuvem/Fumaça / Cloud & Smoke</option>
+                        <option value="glitter-sparkle">✨ Brilho Estrela / Sparkle</option>
+                        <option value="chain-pattern">⛓️ Corrente / Chain Pattern</option>
+                        <option value="wood-grain">🪵 Madeira / Wood Grain</option>
+                        <option value="marble-vein">🏛️ Mármore / Marble Vein</option>
+                        <option value="calligraphy-ribbon">🎗️ Fita Caligráfica / Ribbon</option>
                       </>
                     )}
                     {['pixel', 'pixel_eraser'].includes(tool) && (
                       <>
-                        <option value="dither-50">Dither (50%)</option>
-                        <option value="dither-25">Dither (25%)</option>
-                        <option value="dither-75">Dither (75%)</option>
-                        <option value="horizontal">Horizontal Lines</option>
-                        <option value="vertical">Vertical Lines</option>
-                        <option value="crosshatch">Crosshatch</option>
+                        <option value="dither-50">🏁 Dither 50% (Xadrez)</option>
+                        <option value="dither-25">🏁 Dither 25% (Esparso)</option>
+                        <option value="dither-75">🏁 Dither 75% (Denso)</option>
+                        <option value="dither-12">🏁 Dither 12.5% (Leve)</option>
+                        <option value="dither-33">🏁 Dither 33% (Médio)</option>
+                        <option value="dither-66">🏁 Dither 66% (Escuro)</option>
+                        <option value="horizontal">➖ Linhas Horizontais</option>
+                        <option value="vertical">➗ Linhas Verticais</option>
+                        <option value="crosshatch">✖️ Crosshatch / Hachura</option>
+                        <option value="pixel-checker-dense">🔳 Xadrez Denso 2x2</option>
+                        <option value="pixel-diagonal-left">📐 Diagonais 45º Esq</option>
+                        <option value="pixel-diagonal-right">📐 Diagonais 45º Dir</option>
+                        <option value="pixel-brick">🧱 Tijolos Pixel 8-Bit</option>
+                        <option value="pixel-dots-grid">🟣 Matriz de Pontos</option>
+                        <option value="pixel-stars">⭐ Estrelas Pixel 8-Bit</option>
+                        <option value="pixel-noise">📺 Ruído Chiptune</option>
+                        <option value="pixel-weave">🧺 Trama Pixel 16-Bit</option>
                       </>
                     )}
                   </optgroup>
@@ -1054,7 +1308,13 @@ export function PropertiesPanel() {
 
             {/* Canvas View Settings */}
             <div className="pt-4 border-t border-zinc-700/40">
-              <div className="text-[10px] text-zinc-500 uppercase font-bold mb-2">Visualização da Tela</div>
+              <div 
+                className="flex items-center justify-between cursor-pointer group select-none mb-2"
+                onClick={() => setShowCanvasSubMenu(!showCanvasSubMenu)}
+              >
+                <span className="text-[10px] text-zinc-500 uppercase font-bold group-hover:text-zinc-300 transition-colors">Visualização da Tela</span>
+                <ChevronRight size={12} className={twMerge("text-zinc-500 transition-transform duration-200", showCanvasSubMenu && "rotate-90")} />
+              </div>
               <div className="space-y-3">
                 <div className="space-y-1">
                   <div className="flex justify-between">
@@ -1085,119 +1345,191 @@ export function PropertiesPanel() {
                     </button>
                   </div>
                 </div>
+
+                {showCanvasSubMenu && (
+                  <div className="pt-2 border-t border-zinc-800 space-y-2 animate-fade-in">
+                    <span className="text-[9px] font-bold text-zinc-400 uppercase">Sub-menu de Visualização</span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button 
+                        onClick={() => useStore.getState().setRotation(-90)}
+                        className="py-1 bg-zinc-800 hover:bg-zinc-700 text-[9px] text-zinc-300 rounded text-center"
+                      >
+                        -90° (Esquerda)
+                      </button>
+                      <button 
+                        onClick={() => useStore.getState().setRotation(180)}
+                        className="py-1 bg-zinc-800 hover:bg-zinc-700 text-[9px] text-zinc-300 rounded text-center"
+                      >
+                        180° (Inverter)
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Onion Skin Properties */}
-            <div className="pt-4 border-t border-zinc-700/40 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-zinc-500 uppercase font-bold">Papel Vegetal (Onion Skin)</span>
-                <button
-                  onClick={toggleOnionSkin}
-                  className={twMerge(
-                    "text-[9px] px-2 py-0.5 rounded font-bold transition-all",
-                    onionSkin ? "bg-indigo-600 text-white" : "bg-[#1a1a1a] text-zinc-400"
-                  )}
-                >
-                  {onionSkin ? "ATIVADO" : "DESATIVADO"}
-                </button>
-              </div>
-
-              {onionSkin && (
-                <div className="space-y-3 pt-1">
-                  {/* Before / After Frame Counts */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-zinc-400">Anteriores</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="5"
-                        value={onionSkinBefore}
-                        onChange={(e) => setOnionSkinBefore(Math.max(1, Math.min(5, parseInt(e.target.value) || 1)))}
-                        className="w-full bg-[#1a1a1a] text-zinc-300 text-xs px-1.5 py-0.5 rounded border border-zinc-700/50"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-zinc-400">Posteriores</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="5"
-                        value={onionSkinAfter}
-                        onChange={(e) => setOnionSkinAfter(Math.max(1, Math.min(5, parseInt(e.target.value) || 1)))}
-                        className="w-full bg-[#1a1a1a] text-zinc-300 text-xs px-1.5 py-0.5 rounded border border-zinc-700/50"
-                      />
-                    </div>
+            {animationEnabled && (
+              <div className="pt-4 border-t border-zinc-700/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div 
+                    className="flex items-center gap-1.5 cursor-pointer group select-none"
+                    onClick={() => setShowOnionSkinSubMenu(!showOnionSkinSubMenu)}
+                  >
+                    <span className="text-[10px] text-zinc-500 uppercase font-bold group-hover:text-zinc-300 transition-colors">Papel Vegetal (Onion Skin)</span>
+                    <ChevronRight size={12} className={twMerge("text-zinc-500 transition-transform duration-200", showOnionSkinSubMenu && "rotate-90")} />
                   </div>
-
-                  {/* Opacity Slider */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] text-zinc-400">
-                      <span>Opacidade</span>
-                      <span>{Math.round(onionSkinOpacity * 100)}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.05"
-                      max="1.0"
-                      step="0.05"
-                      value={onionSkinOpacity}
-                      onChange={(e) => setOnionSkinOpacity(parseFloat(e.target.value))}
-                      className="w-full h-1 bg-black/20 appearance-none rounded-full accent-[#4c4cff]"
-                    />
-                  </div>
-
-                  {/* Colors for Past / Future */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-zinc-400 block">Cor Anterior</label>
-                      <div className="flex items-center gap-1 bg-[#1a1a1a] p-1 rounded border border-zinc-700/50">
-                        <input
-                          type="color"
-                          value={onionSkinPastColor}
-                          onChange={(e) => setOnionSkinPastColor(e.target.value)}
-                          className="w-5 h-5 cursor-pointer bg-transparent border-0 p-0"
-                        />
-                        <span className="text-[9px] text-zinc-400 font-mono">{onionSkinPastColor}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-zinc-400 block">Cor Posterior</label>
-                      <div className="flex items-center gap-1 bg-[#1a1a1a] p-1 rounded border border-zinc-700/50">
-                        <input
-                          type="color"
-                          value={onionSkinFutureColor}
-                          onChange={(e) => setOnionSkinFutureColor(e.target.value)}
-                          className="w-5 h-5 cursor-pointer bg-transparent border-0 p-0"
-                        />
-                        <span className="text-[9px] text-zinc-400 font-mono">{onionSkinFutureColor}</span>
-                      </div>
-                    </div>
-                  </div>
+                  <button
+                    onClick={toggleOnionSkin}
+                    className={twMerge(
+                      "text-[9px] px-2 py-0.5 rounded font-bold transition-all",
+                      onionSkin ? "bg-indigo-600 text-white" : "bg-[#1a1a1a] text-zinc-400"
+                    )}
+                  >
+                    {onionSkin ? "ATIVADO" : "DESATIVADO"}
+                  </button>
                 </div>
-              )}
-            </div>
+
+                {(onionSkin || showOnionSkinSubMenu) && (
+                  <div className="space-y-3 pt-1 animate-fade-in">
+                    {/* Before / After Frame Counts */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-zinc-400">Anteriores</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="5"
+                          value={onionSkinBefore}
+                          onChange={(e) => setOnionSkinBefore(Math.max(1, Math.min(5, parseInt(e.target.value) || 1)))}
+                          className="w-full bg-[#1a1a1a] text-zinc-300 text-xs px-1.5 py-0.5 rounded border border-zinc-700/50"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-zinc-400">Posteriores</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="5"
+                          value={onionSkinAfter}
+                          onChange={(e) => setOnionSkinAfter(Math.max(1, Math.min(5, parseInt(e.target.value) || 1)))}
+                          className="w-full bg-[#1a1a1a] text-zinc-300 text-xs px-1.5 py-0.5 rounded border border-zinc-700/50"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Opacity Slider */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[9px] text-zinc-400">
+                        <span>Opacidade</span>
+                        <span>{Math.round(onionSkinOpacity * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.05"
+                        max="1.0"
+                        step="0.05"
+                        value={onionSkinOpacity}
+                        onChange={(e) => setOnionSkinOpacity(parseFloat(e.target.value))}
+                        className="w-full h-1 bg-black/20 appearance-none rounded-full accent-[#4c4cff]"
+                      />
+                    </div>
+
+                    {/* Colors for Past / Future */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-zinc-400 block">Cor Anterior</label>
+                        <div className="flex items-center gap-1 bg-[#1a1a1a] p-1 rounded border border-zinc-700/50">
+                          <input
+                            type="color"
+                            value={onionSkinPastColor}
+                            onChange={(e) => setOnionSkinPastColor(e.target.value)}
+                            className="w-5 h-5 cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <span className="text-[9px] text-zinc-400 font-mono">{onionSkinPastColor}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-zinc-400 block">Cor Posterior</label>
+                        <div className="flex items-center gap-1 bg-[#1a1a1a] p-1 rounded border border-zinc-700/50">
+                          <input
+                            type="color"
+                            value={onionSkinFutureColor}
+                            onChange={(e) => setOnionSkinFutureColor(e.target.value)}
+                            className="w-5 h-5 cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <span className="text-[9px] text-zinc-400 font-mono">{onionSkinFutureColor}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Filter Properties */}
             <div className="pt-4 border-t border-zinc-700/40">
-               <div className="text-[10px] text-zinc-500 uppercase font-bold mb-2">Filters</div>
+               <div 
+                 className="flex items-center justify-between cursor-pointer group select-none mb-2"
+                 onClick={() => setShowFilterSubMenu(!showFilterSubMenu)}
+               >
+                 <span className="text-[10px] text-zinc-500 uppercase font-bold group-hover:text-zinc-300 transition-colors">Filtros & Efeitos (Filters)</span>
+                 <ChevronRight size={12} className={twMerge("text-zinc-500 transition-transform duration-200", showFilterSubMenu && "rotate-90")} />
+               </div>
                <button 
                 className="w-full text-left text-[11px] py-2 px-3 bg-[#1a1a1a] rounded text-zinc-300 hover:bg-zinc-700 flex items-center justify-between"
                 onClick={() => useStore.getState().toggleFilters()}
                >
-                 <span>Open Filter Menu</span>
+                 <span>Abrir Menu de Filtros</span>
                  <Sliders size={12} />
                </button>
+
+               {showFilterSubMenu && (
+                 <div className="pt-2 mt-2 border-t border-zinc-800 space-y-1.5 animate-fade-in">
+                   <span className="text-[9px] font-bold text-zinc-400 uppercase">Sub-menu de Filtros Rápido</span>
+                   <div className="grid grid-cols-2 gap-1">
+                     <button
+                       onClick={() => activeLayerId && invertLayerColors(activeLayerId)}
+                       className="py-1 px-1.5 bg-[#1a1a1a] hover:bg-zinc-700 rounded text-[9px] text-zinc-300 text-center"
+                     >
+                       Inverter Cores
+                     </button>
+                     <button
+                       onClick={() => activeLayerId && convertToGrayscale(activeLayerId)}
+                       className="py-1 px-1.5 bg-[#1a1a1a] hover:bg-zinc-700 rounded text-[9px] text-zinc-300 text-center"
+                     >
+                       Escala de Cinza
+                     </button>
+                     <button
+                       onClick={() => activeLayerId && sepiaFilter(activeLayerId)}
+                       className="py-1 px-1.5 bg-[#1a1a1a] hover:bg-zinc-700 rounded text-[9px] text-zinc-300 text-center"
+                     >
+                       Sépia
+                     </button>
+                     <button
+                       onClick={() => activeLayerId && adjustBrightness(activeLayerId)}
+                       className="py-1 px-1.5 bg-[#1a1a1a] hover:bg-zinc-700 rounded text-[9px] text-zinc-300 text-center"
+                     >
+                       Ajustar Brilho
+                     </button>
+                   </div>
+                 </div>
+               )}
             </div>
             
             {/* Presets for Brush */}
             {tool === 'brush' && (
               <div className="pt-2 border-t border-zinc-700/40">
-                <div className="flex justify-between items-center mb-1.5">
-                   <div className="text-[10px] text-zinc-500 uppercase font-bold">Presets</div>
+                <div 
+                  className="flex justify-between items-center mb-1.5 cursor-pointer group select-none"
+                  onClick={() => setShowPresetSubMenu(!showPresetSubMenu)}
+                >
+                   <div className="flex items-center gap-1.5">
+                     <span className="text-[10px] text-zinc-500 uppercase font-bold group-hover:text-zinc-300 transition-colors">Presets</span>
+                     <ChevronRight size={12} className={twMerge("text-zinc-500 transition-transform duration-200", showPresetSubMenu && "rotate-90")} />
+                   </div>
                    <button 
-                      onClick={handleSavePreset} 
+                      onClick={(e) => { e.stopPropagation(); handleSavePreset(); }} 
                       disabled={!newPresetName.trim()}
                       className="text-[10px] text-indigo-400 hover:text-indigo-300 disabled:opacity-30"
                    >Save Current</button>

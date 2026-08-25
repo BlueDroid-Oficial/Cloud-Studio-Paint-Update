@@ -16,6 +16,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
+import { setLocalDraft, getLocalDraft, getAllLocalDrafts, deleteLocalDraft } from "../lib/localDb";
 import { GlobalCompositeOperation } from "react";
 
 export function isCanvasBlank(canvas: HTMLCanvasElement): boolean {
@@ -657,6 +658,7 @@ interface AppState {
   renameTimeline: (id: string, name: string) => void;
   addLayer: () => void;
   addLayerWithImage: (name: string, dataUrl: string) => void;
+  addPinterestTemplate: (name: string, dataUrl: string) => void;
   addVectorLayer: () => void;
   addFolderLayer: () => void;
   removeLayer: (id: string) => void;
@@ -715,6 +717,10 @@ interface AppState {
   setShowProjectSettings: (show: boolean) => void;
   showAccountModal: boolean;
   setShowAccountModal: (show: boolean) => void;
+  isKidsMode: boolean;
+  setIsKidsMode: (active: boolean) => void;
+  kidsModePin: string;
+  setKidsModePin: (pin: string) => void;
   showFiltersDrawer: boolean;
   setShowFiltersDrawer: (show: boolean) => void;
   showGrid: boolean;
@@ -824,6 +830,7 @@ interface AppState {
   addFrame: () => void;
   removeFrame: (frame: number) => void;
   duplicateFrameTimes: (frame: number, times: number) => void;
+  reorderFrames: (fromFrame: number, toFrame: number) => void;
 
   invertLayerColors: (id: string) => void;
   rasterizeLayer: (id: string) => void;
@@ -950,6 +957,9 @@ interface AppState {
   checkSavedState: () => void;
   saveToLocalStorage: () => void;
   restoreFromLocalStorage: () => Promise<boolean>;
+  _debouncedCloudSave: () => void;
+  loadLocalProject: (id: string) => Promise<void>;
+  deleteLocalProject: (id: string) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -1508,6 +1518,94 @@ export const useStore = create<AppState>((set, get) => ({
       return { activeLayerId: newLayerId };
     }),
 
+  addPinterestTemplate: (name, dataUrl) => {
+    localStorage.setItem("saved_simple_mode", "true");
+    set((state) => ({
+      simpleMode: true,
+      onionSkin: true
+    }));
+
+    const imageLayerId = uuidv4();
+    const blankLayerId = uuidv4();
+
+    const newCanvas = document.createElement("canvas");
+    const blankCanvas = document.createElement("canvas");
+
+    const img = new Image();
+    img.onload = () => {
+      const targetWidth = img.width;
+      const targetHeight = img.height;
+      const canvasWidth = Math.max(get().width, targetWidth) + 800;
+      const canvasHeight = Math.max(get().height, targetHeight) + 800;
+
+      const scale = Math.min((canvasWidth - 100) / targetWidth, (canvasHeight - 100) / targetHeight);
+      const finalWidth = targetWidth * scale;
+      const finalHeight = targetHeight * scale;
+      const offsetX = (canvasWidth - finalWidth) / 2;
+      const offsetY = (canvasHeight - finalHeight) / 2;
+
+      newCanvas.width = canvasWidth;
+      newCanvas.height = canvasHeight;
+      const ctx = newCanvas.getContext("2d", { willReadFrequently: true });
+      if (ctx) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, offsetX, offsetY, finalWidth, finalHeight);
+      }
+
+      blankCanvas.width = canvasWidth;
+      blankCanvas.height = canvasHeight;
+      const blankCtx = blankCanvas.getContext("2d", { willReadFrequently: true });
+
+      const imageLayer: Layer = {
+        id: imageLayerId,
+        name: `${name} (Linhas)`,
+        canvas: newCanvas,
+        ctx: ctx,
+        visible: true,
+        opacity: 100,
+        blendMode: 'source-over',
+        clippingMask: false,
+        cels: {},
+        type: 'bitmap',
+        originalWidth: targetWidth,
+        originalHeight: targetHeight,
+        scale: scale,
+        offsetX: offsetX,
+        offsetY: offsetY
+      };
+
+      const blankLayer: Layer = {
+        id: blankLayerId,
+        name: `Pintura (Abaixo)`,
+        canvas: blankCanvas,
+        ctx: blankCtx,
+        visible: true,
+        opacity: 100,
+        blendMode: 'source-over',
+        clippingMask: false,
+        cels: {},
+        type: 'bitmap'
+      };
+
+      set((s) => ({
+        width: canvasWidth,
+        height: canvasHeight,
+        zoom: Math.round(Math.min((window.innerWidth * 0.8) / canvasWidth, (window.innerHeight * 0.8) / canvasHeight, 1) * 100),
+        layers: [imageLayer, blankLayer, ...s.layers],
+        activeLayerId: blankLayerId,
+      }));
+
+      get().setNotification({
+        message: `Desenho "${name}" carregado! Modo Simples ativado e camada de pintura criada abaixo do desenho.`,
+        type: "success",
+      });
+
+      window.dispatchEvent(new CustomEvent("render-display"));
+      get().pushHistory();
+    };
+    img.src = dataUrl;
+  },
+
   addVectorLayer: () =>
     set((state) => {
       const newLayer: Layer = {
@@ -1600,7 +1698,7 @@ export const useStore = create<AppState>((set, get) => ({
       if (!layer) return state;
 
       if (layer.ctx) {
-        layer.ctx.clearRect(0, 0, state.width, state.height);
+        layer.ctx.clearRect(0, 0, layer.ctx.canvas.width, layer.ctx.canvas.height);
       }
 
       const newLayers = state.layers.map((l) => {
@@ -1893,6 +1991,20 @@ export const useStore = create<AppState>((set, get) => ({
   setShowProjectSettings: (showProjectSettings) => set({ showProjectSettings }),
   showAccountModal: false,
   setShowAccountModal: (showAccountModal) => set({ showAccountModal }),
+  isKidsMode: typeof window !== "undefined" ? localStorage.getItem("kids_mode") === "true" : false,
+  setIsKidsMode: (isKidsMode) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("kids_mode", String(isKidsMode));
+    }
+    set({ isKidsMode });
+  },
+  kidsModePin: typeof window !== "undefined" ? localStorage.getItem("kids_mode_pin") || "1234" : "1234",
+  setKidsModePin: (kidsModePin) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("kids_mode_pin", kidsModePin);
+    }
+    set({ kidsModePin });
+  },
   showFiltersDrawer: false,
   setShowFiltersDrawer: (showFiltersDrawer) => set({ showFiltersDrawer }),
   showGrid: false,
@@ -2202,20 +2314,12 @@ export const useStore = create<AppState>((set, get) => ({
         let celData = l.cels[frame];
         let cachedCanvas = l.celCache?.[frame];
 
-        if (!celData) {
-          for (let prevF = frame - 1; prevF >= 1; prevF--) {
-            if (l.cels[prevF]) {
-              celData = l.cels[prevF];
-              cachedCanvas = l.celCache?.[prevF];
-              break;
-            }
-          }
-        }
+        
         
         celData = celData || "";
 
         if (l.ctx) {
-          l.ctx.clearRect(0, 0, state.width, state.height);
+          l.ctx.clearRect(0, 0, 99999, 99999);
           if (cachedCanvas) {
             l.ctx.drawImage(cachedCanvas, 0, 0);
             return l;
@@ -2273,7 +2377,14 @@ export const useStore = create<AppState>((set, get) => ({
     window.dispatchEvent(new CustomEvent("render-display"));
   },
 
-  addFrame: () => set((state) => ({ totalFrames: state.totalFrames + 1 })),
+  addFrame: () => set((state) => {
+    const newFrame = state.totalFrames + 1;
+    const newLayers = state.layers.map(l => ({
+      ...l,
+      cels: { ...l.cels, [newFrame]: "" }
+    }));
+    return { totalFrames: newFrame, layers: newLayers };
+  }),
   removeFrame: (frame) =>
     set((state) => {
       const newLayers = state.layers.map((l) => {
@@ -2361,100 +2472,131 @@ export const useStore = create<AppState>((set, get) => ({
     return { ...state };
   }),
 
+  
   reverseAnimation: (id) => set((state) => {
-    const layerKeyframes = state.keyframes.filter(k => k.layerId === id);
-    if(layerKeyframes.length === 0) return state;
+    const layer = state.layers.find(l => l.id === id);
+    if (!layer || !layer.cels) return state;
+    const celsArray = Object.entries(layer.cels).map(([k, v]) => ({ frame: parseInt(k), data: v })).sort((a,b) => a.frame - b.frame);
+    if (celsArray.length === 0) return state;
     
-    // Reverse their canvasData contents but keep them at the same frame indices
-    const sortedIndices = layerKeyframes.map(k => k.frame).sort((a,b) => a-b);
-    const reversedData = layerKeyframes.map(k => k.canvasData).reverse();
-    
-    const newKeyframes = state.keyframes.map(k => {
-      if (k.layerId === id) {
-        const sortedIndex = sortedIndices.indexOf(k.frame);
-        return { ...k, canvasData: reversedData[sortedIndex] };
-      }
-      return k;
+    const reversedData = [...celsArray].reverse().map(c => c.data);
+    const newCels = {};
+    celsArray.forEach((c, i) => {
+      newCels[c.frame] = reversedData[i];
     });
-    return { keyframes: newKeyframes, savedStateString: null };
+    
+    return {
+      layers: state.layers.map(l => l.id === id ? { ...l, cels: { ...l.cels, ...newCels }, celCache: {} } : l),
+      savedStateString: null
+    };
   }),
   shiftFramesRight: (id) => set((state) => {
-    const newKeyframes = state.keyframes.map(k => {
-      if (k.layerId === id) return { ...k, frame: k.frame + 1 };
-      return k;
-    });
-    return { keyframes: newKeyframes, savedStateString: null };
+    const layer = state.layers.find(l => l.id === id);
+    if (!layer || !layer.cels) return state;
+    const newCels = {};
+    for (const [fStr, data] of Object.entries(layer.cels)) {
+       const f = parseInt(fStr);
+       newCels[f + 1] = data;
+    }
+    return {
+      layers: state.layers.map(l => l.id === id ? { ...l, cels: newCels, celCache: {} } : l),
+      savedStateString: null
+    };
   }),
   shiftFramesLeft: (id) => set((state) => {
-    const newKeyframes = state.keyframes.map(k => {
-      if (k.layerId === id) return { ...k, frame: Math.max(1, k.frame - 1) };
-      return k;
-    });
-    return { keyframes: newKeyframes, savedStateString: null };
+    const layer = state.layers.find(l => l.id === id);
+    if (!layer || !layer.cels) return state;
+    const newCels = {};
+    for (const [fStr, data] of Object.entries(layer.cels)) {
+       const f = parseInt(fStr);
+       newCels[Math.max(1, f - 1)] = data;
+    }
+    return {
+      layers: state.layers.map(l => l.id === id ? { ...l, cels: newCels, celCache: {} } : l),
+      savedStateString: null
+    };
   }),
   clearCurrentFrame: (id) => set((state) => {
     const layer = state.layers.find(l => l.id === id);
     if (layer && layer.ctx) {
-      layer.ctx.clearRect(0, 0, state.width, state.height);
+      layer.ctx.clearRect(0, 0, 99999, 99999);
     }
-    const newKeyframes = state.keyframes.map(k => {
-      if (k.layerId === id && k.frame === state.currentFrame) {
-        return { ...k, canvasData: "" };
-      }
-      return k;
-    });
-    return { keyframes: newKeyframes, savedStateString: null };
+    const newCels = { ...(layer?.cels || {}) };
+    newCels[state.currentFrame] = "";
+    return {
+      layers: state.layers.map(l => l.id === id ? { ...l, cels: newCels, celCache: {} } : l),
+      savedStateString: null
+    };
   }),
   copyFrameToAll: (id) => set((state) => {
     const layer = state.layers.find(l => l.id === id);
-    if(!layer || !layer.ctx) return state;
-    const canvasData = layer.ctx.canvas.toDataURL();
+    if (!layer) return state;
     
-    const newKeyframes = state.keyframes.map(k => {
-      if (k.layerId === id) {
-        return { ...k, canvasData };
-      }
-      return k;
-    });
-    return { keyframes: newKeyframes, savedStateString: null };
+    // Attempt to grab from ctx if it's the current active, otherwise from cels
+    const canvasData = (layer.ctx && layer.id === id) ? layer.ctx.canvas.toDataURL() : (layer.cels[state.currentFrame] || "");
+    const newCels = {};
+    for (let i = 1; i <= state.totalFrames; i++) {
+       newCels[i] = canvasData;
+    }
+    return {
+      layers: state.layers.map(l => l.id === id ? { ...l, cels: newCels, celCache: {} } : l),
+      savedStateString: null
+    };
   }),
   randomizeFrames: (id) => set((state) => {
-    const layerKeyframes = state.keyframes.filter(k => k.layerId === id);
-    if(layerKeyframes.length === 0) return state;
+    const layer = state.layers.find(l => l.id === id);
+    if (!layer || !layer.cels) return state;
+    const celsArray = Object.entries(layer.cels).map(([k, v]) => ({ frame: parseInt(k), data: v }));
+    if (celsArray.length === 0) return state;
     
-    const sortedIndices = layerKeyframes.map(k => k.frame).sort((a,b) => a-b);
-    const shuffledData = layerKeyframes.map(k => k.canvasData).sort(() => Math.random() - 0.5);
+    const frames = celsArray.map(c => c.frame).sort((a,b) => a-b);
+    const shuffledData = celsArray.map(c => c.data).sort(() => Math.random() - 0.5);
     
-    const newKeyframes = state.keyframes.map(k => {
-      if (k.layerId === id) {
-        const sortedIndex = sortedIndices.indexOf(k.frame);
-        return { ...k, canvasData: shuffledData[sortedIndex] };
-      }
-      return k;
+    const newCels = {};
+    frames.forEach((f, i) => {
+      newCels[f] = shuffledData[i];
     });
-    return { keyframes: newKeyframes, savedStateString: null };
+    return {
+      layers: state.layers.map(l => l.id === id ? { ...l, cels: { ...l.cels, ...newCels }, celCache: {} } : l),
+      savedStateString: null
+    };
   }),
   pingPongAnimation: (id) => set((state) => {
-    // A bit complex for keyframes, just copy reverse at the end
-    const layerKeyframes = state.keyframes.filter(k => k.layerId === id);
-    if(layerKeyframes.length === 0) return state;
+    const layer = state.layers.find(l => l.id === id);
+    if (!layer || !layer.cels) return state;
+    const frames = Object.keys(layer.cels).map(Number).sort((a,b) => a-b);
+    if (frames.length === 0) return state;
     
-    const sortedKfs = [...layerKeyframes].sort((a,b) => a.frame - b.frame);
-    const lastFrame = sortedKfs[sortedKfs.length - 1].frame;
+    const lastFrame = frames[frames.length - 1];
+    const newCels = { ...layer.cels };
+    let nextFrame = lastFrame + 1;
     
-    const pingPongKfs = sortedKfs.slice(0, -1).reverse().map((k, i) => {
-       return { ...k, id: crypto.randomUUID(), frame: lastFrame + i + 1 };
-    });
+    // Copy the frames in reverse order (omitting the very last frame so it doesn't double-play)
+    for (let i = frames.length - 2; i >= 0; i--) {
+      newCels[nextFrame] = layer.cels[frames[i]];
+      nextFrame++;
+    }
     
-    return { keyframes: [...state.keyframes, ...pingPongKfs], savedStateString: null };
+    return {
+      layers: state.layers.map(l => l.id === id ? { ...l, cels: newCels, celCache: {} } : l),
+      totalFrames: Math.max(state.totalFrames, nextFrame - 1),
+      savedStateString: null
+    };
   }),
   extendFrameDuration: (id) => set((state) => {
     return { ...state };
   }),
   deleteFrame: (id) => set((state) => {
-    const newKeyframes = state.keyframes.filter(k => !(k.layerId === id && k.frame === state.currentFrame));
-    return { keyframes: newKeyframes, savedStateString: null };
+    const layer = state.layers.find(l => l.id === id);
+    if (!layer) return state;
+    const newCels = { ...(layer.cels || {}) };
+    newCels[state.currentFrame] = "";
+    return {
+      layers: state.layers.map(l => l.id === id ? { ...l, cels: newCels, celCache: {} } : l),
+      savedStateString: null
+    };
   }),
+
 
   duplicateFrameTimes: (frame, times) => {
     if (times <= 0) return;
@@ -2511,6 +2653,83 @@ export const useStore = create<AppState>((set, get) => ({
     get().setCurrentFrame(frame + 1);
   },
 
+  reorderFrames: (fromFrame: number, toFrame: number) => {
+    const state = get();
+    if (fromFrame === toFrame || fromFrame < 1 || toFrame < 1 || fromFrame > state.totalFrames || toFrame > state.totalFrames) {
+      return;
+    }
+
+    state._saveCurrentCels();
+
+    const frameIndices = Array.from({ length: state.totalFrames }, (_, i) => i + 1);
+    const [movedFrame] = frameIndices.splice(fromFrame - 1, 1);
+    frameIndices.splice(toFrame - 1, 0, movedFrame);
+
+    // frameIndices[i] is the old frame number that is now at position i + 1
+    const newLayers = state.layers.map((l) => {
+      const newCels: { [frame: number]: string } = {};
+      const newCelCache: { [frame: number]: HTMLCanvasElement } = {};
+
+      frameIndices.forEach((oldFrame, newIdx) => {
+        const newFrameNum = newIdx + 1;
+        if (l.cels[oldFrame] !== undefined) {
+          newCels[newFrameNum] = l.cels[oldFrame];
+        }
+        if (l.celCache && l.celCache[oldFrame]) {
+          newCelCache[newFrameNum] = l.celCache[oldFrame];
+        }
+      });
+
+      return {
+        ...l,
+        cels: newCels,
+        celCache: newCelCache,
+      };
+    });
+
+    const newFrameDurations: { [frame: number]: number } = {};
+    const newKeyframedLayers: { [frame: number]: string[] } = {};
+
+    frameIndices.forEach((oldFrame, newIdx) => {
+      const newFrameNum = newIdx + 1;
+      if (state.frameDurations[oldFrame] !== undefined) {
+        newFrameDurations[newFrameNum] = state.frameDurations[oldFrame];
+      }
+      if (state.keyframedLayers[oldFrame] !== undefined) {
+        newKeyframedLayers[newFrameNum] = state.keyframedLayers[oldFrame];
+      }
+    });
+
+    // Reorder keyframes array
+    const oldToNewMap = new Map<number, number>();
+    frameIndices.forEach((oldFrame, newIdx) => {
+      oldToNewMap.set(oldFrame, newIdx + 1);
+    });
+
+    const newKeyframes = state.keyframes.map((k) => ({
+      ...k,
+      frame: oldToNewMap.get(k.frame) || k.frame,
+    }));
+
+    let targetCurrentFrame = state.currentFrame;
+    if (state.currentFrame === fromFrame) {
+      targetCurrentFrame = toFrame;
+    } else if (fromFrame < toFrame && state.currentFrame > fromFrame && state.currentFrame <= toFrame) {
+      targetCurrentFrame = state.currentFrame - 1;
+    } else if (fromFrame > toFrame && state.currentFrame >= toFrame && state.currentFrame < fromFrame) {
+      targetCurrentFrame = state.currentFrame + 1;
+    }
+
+    set({
+      layers: newLayers,
+      frameDurations: newFrameDurations,
+      keyframedLayers: newKeyframedLayers,
+      keyframes: newKeyframes,
+    });
+
+    get().setCurrentFrame(targetCurrentFrame);
+  },
+
   _saveCurrentCels: () => {
     const state = get();
     const frame = state.currentFrame;
@@ -2530,7 +2749,7 @@ export const useStore = create<AppState>((set, get) => ({
         cachedCanvas.height = state.height;
         const cachedCtx = cachedCanvas.getContext("2d");
         if (cachedCtx) {
-          cachedCtx.clearRect(0, 0, state.width, state.height);
+          cachedCtx.clearRect(0, 0, 99999, 99999);
           cachedCtx.drawImage(l.canvas, 0, 0);
         }
         celCache = { ...celCache, [frame]: cachedCanvas };
@@ -2610,7 +2829,7 @@ export const useStore = create<AppState>((set, get) => ({
     // Iterate through all frames
     const bgCol = state.canvasBackgroundColor;
     for (let f = 1; f <= totalFrames; f++) {
-      ctx.clearRect(0, 0, width, height);
+      ctx.clearRect(0, 0, 99999, 99999);
       // Background
       if (bgCol !== "transparent") {
         ctx.fillStyle = bgCol;
@@ -3251,6 +3470,13 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     set({ history: newHistory, historyIndex: newHistory.length - 1 });
+    
+    // Auto-save locally on history push
+    try {
+      get().saveToLocalStorage();
+    } catch (e) {
+      // ignore
+    }
   },
 
   undo: async (broadcast = true) => {
@@ -3259,6 +3485,7 @@ export const useStore = create<AppState>((set, get) => ({
       const newIndex = state.historyIndex - 1;
       await state._loadFromHistorySnapshot(state.history[newIndex]);
       set({ historyIndex: newIndex });
+      get().saveToLocalStorage();
       
       if (broadcast && state.activeCollaborationId && auth.currentUser) {
         addDoc(collection(db, `collaborations/${state.activeCollaborationId}/strokes`), {
@@ -3276,6 +3503,7 @@ export const useStore = create<AppState>((set, get) => ({
       const newIndex = state.historyIndex + 1;
       await state._loadFromHistorySnapshot(state.history[newIndex]);
       set({ historyIndex: newIndex });
+      get().saveToLocalStorage();
 
       if (broadcast && state.activeCollaborationId && auth.currentUser) {
         addDoc(collection(db, `collaborations/${state.activeCollaborationId}/strokes`), {
@@ -3293,6 +3521,7 @@ export const useStore = create<AppState>((set, get) => ({
       const newIndex = 0;
       await state._loadFromHistorySnapshot(state.history[newIndex]);
       set({ historyIndex: newIndex });
+      get().saveToLocalStorage();
 
       if (broadcast && state.activeCollaborationId && auth.currentUser) {
         addDoc(collection(db, `collaborations/${state.activeCollaborationId}/strokes`), {
@@ -3310,6 +3539,7 @@ export const useStore = create<AppState>((set, get) => ({
       const newIndex = state.history.length - 1;
       await state._loadFromHistorySnapshot(state.history[newIndex]);
       set({ historyIndex: newIndex });
+      get().saveToLocalStorage();
 
       if (broadcast && state.activeCollaborationId && auth.currentUser) {
         addDoc(collection(db, `collaborations/${state.activeCollaborationId}/strokes`), {
@@ -3319,6 +3549,17 @@ export const useStore = create<AppState>((set, get) => ({
         }).catch(console.error);
       }
     }
+  },
+
+  _debouncedCloudSave: () => {
+    const state = get();
+    if (!state.user || !state.isOnline) return;
+    if ((state as any)._cloudSaveTimer) {
+      clearTimeout((state as any)._cloudSaveTimer);
+    }
+    (state as any)._cloudSaveTimer = setTimeout(() => {
+      get().saveProjectToFirestore().catch(() => {});
+    }, 2500);
   },
 
   saveToLocalStorage: () => {
@@ -3337,27 +3578,145 @@ export const useStore = create<AppState>((set, get) => ({
       fillTolerance: state.fillTolerance,
       simpleMode: state.simpleMode,
       layersJson,
+      updatedAt: new Date().toISOString(),
     };
 
+    const currentId = state.currentFirestoreProjectId || "local_draft_main";
+      
+    // Generate a quick thumbnail for local project list
+    let thumbnail = "";
     try {
-      localStorage.setItem(
-        "drawing-app-autosave",
-        JSON.stringify(serializedState),
-      );
+      const canvas = document.createElement("canvas");
+      canvas.width = 160;
+      canvas.height = Math.max(80, Math.round(160 * (state.height / state.width)));
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        if (state.canvasBackgroundColor && state.canvasBackgroundColor !== "transparent") {
+          ctx.fillStyle = state.canvasBackgroundColor;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        state.layers.forEach((layer) => {
+          if (layer.visible && layer.canvas) {
+            ctx.globalAlpha = layer.opacity / 100;
+            ctx.globalCompositeOperation = layer.blendMode || "source-over";
+            ctx.drawImage(layer.canvas, 0, 0, canvas.width, canvas.height);
+          }
+        });
+        thumbnail = canvas.toDataURL("image/webp", 0.3);
+      }
+    } catch (err) {
+      // ignore canvas snapshot error
+    }
+
+    const projectEntry = {
+      id: currentId,
+      name: state.projectName || state.layers[0]?.name || "Desenho Recente",
+      width: state.width,
+      height: state.height,
+      thumbnail,
+      layersJson,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Save full data to IndexedDB (no 5MB quota restriction!)
+    setLocalDraft(currentId, projectEntry).catch(console.warn);
+    setLocalDraft("autosave", serializedState).catch(console.warn);
+
+    try {
+      localStorage.setItem("drawing-app-autosave", JSON.stringify(serializedState));
+
+      const localProjects = JSON.parse(localStorage.getItem("local_projects_drafts") || "[]");
+      const existingIdx = localProjects.findIndex((p: any) => p.id === currentId);
+
+      // Light-weight entry for localStorage list (strip layersJson if quota warning)
+      const lightProjectEntry = { ...projectEntry };
+
+      if (existingIdx >= 0) {
+        localProjects[existingIdx] = lightProjectEntry;
+      } else {
+        localProjects.unshift(lightProjectEntry);
+      }
+
+      if (localProjects.length > 10) localProjects.length = 10;
+      localStorage.setItem("local_projects_drafts", JSON.stringify(localProjects));
+
+      set({ hasSavedState: true });
     } catch (e) {
-      console.warn("Failed to save to localStorage, maybe quota exceeded:", e);
+      console.warn("LocalStorage save warning (using IndexedDB primary):", e);
+      set({ hasSavedState: true });
+    }
+
+    // Auto cloud save if user logged in
+    if (state.user && state.isOnline) {
+      state._debouncedCloudSave();
     }
   },
+
+  loadLocalProject: async (id: string) => {
+    try {
+      if (id === "autosave" || id === "local_draft_main") {
+        await get().restoreFromLocalStorage();
+        set({ appView: "editor" });
+        return;
+      }
+
+      // Try IndexedDB first
+      let matched = await getLocalDraft(id);
+      if (!matched) {
+        const localProjects = JSON.parse(localStorage.getItem("local_projects_drafts") || "[]");
+        matched = localProjects.find((p: any) => p.id === id);
+      }
+
+      if (matched && matched.layersJson) {
+        await get()._loadSnapshot(matched.layersJson);
+        set({
+          currentFirestoreProjectId: matched.id.startsWith("local_") ? null : matched.id,
+          width: matched.width || 800,
+          height: matched.height || 600,
+          projectName: matched.name || "Desenho Recente",
+          appView: "editor",
+        });
+      } else {
+        await get().restoreFromLocalStorage();
+        set({ appView: "editor" });
+      }
+    } catch (e) {
+      console.error("Error loading local project:", e);
+      set({ appView: "editor" });
+    }
+  },
+
+  deleteLocalProject: (id: string) => {
+    try {
+      deleteLocalDraft(id).catch(console.warn);
+      const localProjects = JSON.parse(localStorage.getItem("local_projects_drafts") || "[]");
+      const filtered = localProjects.filter((p: any) => p.id !== id);
+      localStorage.setItem("local_projects_drafts", JSON.stringify(filtered));
+      if (id === "local_draft_main" || id === "autosave") {
+        localStorage.removeItem("drawing-app-autosave");
+        deleteLocalDraft("autosave").catch(console.warn);
+        set({ hasSavedState: false });
+      }
+    } catch (e) {
+      console.error("Error deleting local project:", e);
+    }
+  },
+
   restoreFromLocalStorage: async () => {
     try {
-      const saved = localStorage.getItem("drawing-app-autosave");
-      if (!saved) return false;
-
-      const parsed = JSON.parse(saved);
+      let savedStr = localStorage.getItem("drawing-app-autosave");
+      let parsed: any = null;
+      if (savedStr) {
+        try { parsed = JSON.parse(savedStr); } catch (e) {}
+      }
+      if (!parsed) {
+        parsed = await getLocalDraft("autosave");
+      }
+      if (!parsed) return false;
 
       if (parsed.layersJson) {
         await get()._loadSnapshot(parsed.layersJson);
-      } else {
+      } else if (parsed.layers) {
         // Fallback for older format if user has cached data without layersJson
         await get()._loadSnapshot(
           JSON.stringify({

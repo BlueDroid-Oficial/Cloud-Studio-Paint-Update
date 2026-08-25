@@ -347,10 +347,12 @@ export function MenuBar() {
       { label: 'Export PNG (Single Frame)', icon: <Download size={14} />, action: () => handleExport('png') },
       { label: 'Export JPEG (Single Frame)', icon: <Download size={14} />, action: () => handleExport('jpeg') },
       { label: 'Export PSD (Photoshop)', icon: <Download size={14} />, action: () => { exportToPsd(width, height, layers); setOpenMenu(null); } },
-      { divider: true, label: '' },
-      { label: 'Export Animation (GIF)', icon: <Film size={14} />, action: handleExportGIF },
-      { label: 'Export Movie (.mp4)', icon: <Film size={14} />, action: handleExportMovie },
-      { label: 'Export Frames (ZIP)', icon: <Box size={14} />, action: handleExportZip },
+      ...(animationEnabled ? [
+        { divider: true, label: '' },
+        { label: 'Export Animation (GIF)', icon: <Film size={14} />, action: handleExportGIF },
+        { label: 'Export Movie (.mp4)', icon: <Film size={14} />, action: handleExportMovie },
+        { label: 'Export Frames (ZIP)', icon: <Box size={14} />, action: handleExportZip },
+      ] : []),
     ],
     'Edit': [
       { label: 'Undo', icon: <Undo size={14} />, action: () => { undo(); setOpenMenu(null); }, disabled: historyIndex <= 0 },
@@ -365,22 +367,24 @@ export function MenuBar() {
       { label: 'Resize Canvas (800x600)', action: () => { useStore.getState().setWidthHeight(800, 600); setOpenMenu(null); } },
       { label: 'Resize Canvas (1920x1080)', action: () => { useStore.getState().setWidthHeight(1920, 1080); setOpenMenu(null); } },
     ],
-    'Animation': [
-      { 
-        label: animationEnabled ? 'Hide Timeline' : 'Show Timeline', 
-        icon: <Clock size={14} />, 
-        action: () => { setAnimationEnabled(!animationEnabled); setOpenMenu(null); } 
-      },
-      { label: 'Animation Settings', icon: <Settings size={14} />, action: () => { setShowProjectSettings(true); setOpenMenu(null); } },
-      { divider: true, label: '' },
-      { label: 'Play / Pause', icon: <Play size={14} />, action: () => { setIsPlaying(!isPlaying); setOpenMenu(null); } },
-      { label: 'Toggle Onion Skin', icon: <Ghost size={14} />, action: () => { toggleOnionSkin(); setOpenMenu(null); } },
-      { divider: true, label: '' },
-      { label: 'Add Frame', icon: <Plus size={14} />, action: () => { addFrame(); setOpenMenu(null); } },
-      { label: 'Add Keyframe', icon: <Plus size={14} />, action: () => { if (activeLayerId) addKeyframe(activeLayerId, currentFrame); setOpenMenu(null); } },
-      { label: 'Go to Next Frame', icon: <SkipForward size={14} />, action: () => { setCurrentFrame(Math.min(totalFrames, currentFrame + 1)); setOpenMenu(null); } },
-      { label: 'Go to Previous Frame', icon: <SkipBack size={14} />, action: () => { setCurrentFrame(Math.max(1, currentFrame - 1)); setOpenMenu(null); } },
-    ],
+    ...(animationEnabled ? {
+      'Animation': [
+        { 
+          label: animationEnabled ? 'Hide Timeline' : 'Show Timeline', 
+          icon: <Clock size={14} />, 
+          action: () => { setAnimationEnabled(!animationEnabled); setOpenMenu(null); } 
+        },
+        { label: 'Animation Settings', icon: <Settings size={14} />, action: () => { setShowProjectSettings(true); setOpenMenu(null); } },
+        { divider: true, label: '' },
+        { label: 'Play / Pause', icon: <Play size={14} />, action: () => { setIsPlaying(!isPlaying); setOpenMenu(null); } },
+        { label: 'Toggle Onion Skin', icon: <Ghost size={14} />, action: () => { toggleOnionSkin(); setOpenMenu(null); } },
+        { divider: true, label: '' },
+        { label: 'Add Frame', icon: <Plus size={14} />, action: () => { addFrame(); setOpenMenu(null); } },
+        { label: 'Add Keyframe', icon: <Plus size={14} />, action: () => { if (activeLayerId) addKeyframe(activeLayerId, currentFrame); setOpenMenu(null); } },
+        { label: 'Go to Next Frame', icon: <SkipForward size={14} />, action: () => { setCurrentFrame(Math.min(totalFrames, currentFrame + 1)); setOpenMenu(null); } },
+        { label: 'Go to Previous Frame', icon: <SkipBack size={14} />, action: () => { setCurrentFrame(Math.max(1, currentFrame - 1)); setOpenMenu(null); } },
+      ]
+    } : {}),
     'Layer': [
       { label: 'New Raster Layer', icon: <Plus size={14} />, action: () => { addLayer(); setOpenMenu(null); } },
       { label: 'New Vector Layer', icon: <Plus size={14} />, action: () => { addVectorLayer(); setOpenMenu(null); } },

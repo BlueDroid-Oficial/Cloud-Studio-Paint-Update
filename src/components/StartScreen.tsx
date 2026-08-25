@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { v4 as uuidv4 } from "uuid";
 import { useStore } from "../store/useStore";
 import { getTranslation } from "../lib/translations";
 import { getAllLocalDrafts } from "../lib/localDb";
@@ -1576,15 +1577,28 @@ export function StartScreen() {
   };
 
   const createFolder = async () => {
-    if (!user) {
-      alert("Faça login para criar pastas e organizar seus projetos na nuvem!");
-      setSubView("login");
-      return;
-    }
     const folderName = prompt("Digite o nome da nova pasta:", "Minha Pasta");
     if (folderName && folderName.trim()) {
-      const { createFolderInFirestore } = useStore.getState();
-      await createFolderInFirestore(folderName.trim());
+      if (user) {
+        const { createFolderInFirestore } = useStore.getState();
+        await createFolderInFirestore(folderName.trim());
+      } else {
+        const newFolder = {
+          id: uuidv4(),
+          name: folderName.trim(),
+          createdAt: new Date().toISOString()
+        };
+        const currentFolders = JSON.parse(localStorage.getItem("offline_folders") || "[]");
+        currentFolders.push(newFolder);
+        localStorage.setItem("offline_folders", JSON.stringify(currentFolders));
+        useStore.setState({
+          firebaseFolders: [...useStore.getState().firebaseFolders, newFolder]
+        });
+        useStore.getState().setNotification({
+          message: `Pasta "${folderName.trim()}" criada com sucesso!`,
+          type: "success"
+        });
+      }
     }
   };
 
@@ -2991,7 +3005,7 @@ export function StartScreen() {
                     author: "LumiArt",
                     downloads: "892.401",
                     price: "Free",
-                    img: "https://picsum.photos/seed/nebula/300/300",
+                    img: "https://imgs.search.brave.com/dL-fssUBzb3mh7-I8yVuapN4dFz4X3Om_vHiuiNKOhM/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly93YWxs/cGFwZXJzLmNvbS9p/bWFnZXMvaGQvdW5p/dmVyc2UtcGljdHVy/ZXMtNTgyZzFtd3Fo/cnVud3RuMi5qcGc",
                   },
                   {
                     id: 7,

@@ -6,5 +6,5 @@ create, draw, animate them! make your own animations and gestures with keyframes
 Full access to multiplayer, login, text and voice chat!
 
 ## Websites:
-- Public: [CSP Paint: Update](https://csp-paint.vercel.app)
-- Beta: [CSP Paint: Beta](https://csp-paint.up.railway.app) 
+- _**Public:**_ [CSP Paint: Update](https://csp-paint.vercel.app)
+- _**Beta:**_ [CSP Paint: Beta](https://csp-paint.up.railway.app) 

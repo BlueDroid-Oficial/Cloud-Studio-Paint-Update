@@ -382,37 +382,14 @@ export function StartScreen() {
 
   useEffect(() => {
     if (tutorialCompleted) {
-      const hasSeen = localStorage.getItem("seen_whats_new_v2_3_7");
+      const hasSeen = localStorage.getItem("seen_whats_new_v3.2.7");
       if (!hasSeen) {
         setTimeout(() => {
           setShowNoticeModal({
-            title: `Novidades da Versão 2.3.7! ✨🚀`,
-            content: `Olá, artista! Apresentamos a versão 2.3.7 com novas notificações de estabilidade e salvamento local:
-
-• 📶 Notificação de Conexão Offline: Alerta Toast e Banner automático informando quando a internet cai e confirmando o salvamento local em IndexedDB.
-
-• 🚫 Fim da Tela Branca: Otimização para navegadores legados e conexões lentas com tela de carregamento dark nativa.
-
-• 💾 Persistência Garantida: Seus rascunhos são armazenados com segurança diretamente no navegador sem limites estritos de cota.
-
-• 🧹 Interface Limpa: Remoção de botões não utilizados e menus de animação contextualizados.
-
------------------------------
-
-📜 HISTÓRICO DE VERSÕES:
-
-• Versão 2.3.7 (Atual)
-  - Notificações de rede offline com aviso de salvamento local
-  - Removida tela branca para browsers antigos
-  - Limpeza de interface e salvamento local IndexedDB
-
-• Versão 2.3.0
-  - Visualização em tempo real de pincéis no multijogador
-  - Modo reformulado para customização de layout com atalhos de confirmação
-  - Fixação magnética de painéis
-`
+            title: `Novidades da Versão 3.2.7 ✨🚀`,
+            content: `Olá, artista!\n\nAtualizamos o Cloud Studio Paint para a versão 3.2.7. Aproveite os novos pincéis realistas (óleo, spray, pastel) com texturas customizadas e nossa nova tela de "Sobre o Aplicativo" no menu de configurações.\n\nContinue criando! 🎨`
           });
-          localStorage.setItem("seen_whats_new_v2_3_7", "true");
+          localStorage.setItem("seen_whats_new_v3.2.7", "true");
         }, 800);
       }
     }
@@ -1326,6 +1303,7 @@ export function StartScreen() {
   const [showCreativeHoursModal, setShowCreativeHoursModal] = useState(false);
   const [showTeamsModal, setShowTeamsModal] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const [showAppInfoMenu, setShowAppInfoMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const appInfoMenuRef = useRef<HTMLDivElement>(null);
@@ -2228,30 +2206,8 @@ export function StartScreen() {
         <div className="flex items-center gap-4 text-zinc-400">
           <button
             onClick={() => setShowNoticeModal({
-              title: `O que há de novo? - Versão 2.3.7 ✨🚀`,
-              content: `Olá, artista! Apresentamos a versão 2.3.7 com novas notificações de estabilidade e salvamento local:
-
-• 📶 Notificação de Conexão Offline: Alerta Toast e Banner automático informando quando a internet cai e confirmando o salvamento local em IndexedDB.
-
-• 🚫 Fim da Tela Branca: Otimização para navegadores legados e conexões lentas com tela de carregamento dark nativa.
-
-• 💾 Persistência Garantida: Seus rascunhos são armazenados com segurança diretamente no navegador sem limites estritos de cota.
-
-• 🧹 Interface Limpa: Remoção de botões não utilizados e menus de animação contextualizados.
-
------------------------------
-
-📜 HISTÓRICO DE VERSÕES:
-
-• Versão 2.3.7 (Atual)
-  - Notificações de rede offline com aviso de salvamento local
-  - Removida tela branca para browsers antigos
-  - Limpeza de interface e salvamento local IndexedDB
-
-• Versão 2.3.0
-  - Visualização em tempo real de pincéis no multijogador
-  - Modo reformulado para customização de layout com atalhos de confirmação
-  - Fixação magnética de painéis`
+              title: `O que há de novo? - Versão 3.2.7 ✨🚀`,
+              content: `Olá, artista!\n\nAtualizamos o Cloud Studio Paint para a versão 3.2.7. Aproveite os novos pincéis realistas (óleo, spray, pastel) com texturas customizadas e nossa nova tela de "Sobre o Aplicativo" no menu de configurações.\n\nContinue criando! 🎨`
             })}
             className="flex items-center gap-1.5 bg-indigo-950/40 text-indigo-400 border border-indigo-900/60 hover:bg-indigo-900/50 hover:text-white px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
           >
@@ -2268,13 +2224,19 @@ export function StartScreen() {
             {showAppInfoMenu && (
               <div className="absolute top-full right-0 mt-2 w-52 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl overflow-hidden z-50">
                 <div className="flex flex-col py-1">
-                  <div className="flex items-center gap-3 px-4 py-2 hover:bg-zinc-800 transition-colors cursor-pointer text-sm text-zinc-300">
+                  <div 
+                    className="flex items-center gap-3 px-4 py-2 hover:bg-zinc-800 transition-colors cursor-pointer text-sm text-zinc-300"
+                    onClick={() => {
+                      setShowAboutModal(true);
+                      setShowAppInfoMenu(false);
+                    }}
+                  >
                     <Info size={16} className="text-indigo-400" />
                     <span>Sobre o aplicativo</span>
                   </div>
                   <div className="flex items-center gap-3 px-4 py-2 hover:bg-zinc-800 transition-colors cursor-pointer text-sm text-zinc-300">
                     <Hash size={16} className="text-emerald-400" />
-                    <span>Versão atual: 2.3.0</span>
+                    <span>Versão atual: 3.2.7</span>
                   </div>
                 </div>
               </div>
@@ -3099,7 +3061,7 @@ export function StartScreen() {
                     author: "crea_art",
                     downloads: "12.400",
                     price: "Free",
-                    img: "https://picsum.photos/seed/lace-v2/300/300",
+                    img: "https://picsum.photos/seed/lace-v3.2.7/300",
                   },
                   {
                     id: 4,
@@ -3294,7 +3256,7 @@ export function StartScreen() {
                 {[
                   {
                     id: 11,
-                    title: "Nova atualização v2.3.0 disponível!",
+                    title: "Nova atualização v3.2.7 disponível!",
                     date: "Agora mesmo",
                     img: "https://picsum.photos/seed/v230/400/200",
                   },
@@ -5913,6 +5875,45 @@ export function StartScreen() {
               isOpen={showTeamsModal}
               onClose={() => setShowTeamsModal(false)}
             />
+            {showAboutModal && (
+              <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-[#1e1e1e] w-full max-w-md rounded-2xl overflow-hidden border border-zinc-700 shadow-2xl flex flex-col">
+                  <div className="flex justify-between items-center p-4 border-b border-zinc-800">
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Info size={20} className="text-indigo-400" />
+                      Sobre o aplicativo
+                    </h2>
+                    <button
+                      onClick={() => setShowAboutModal(false)}
+                      className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800/50 transition-colors"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <div className="p-6 flex flex-col gap-4 text-sm text-zinc-300">
+                    <div className="flex flex-col items-center gap-2 mb-4">
+                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                        <Brush size={40} className="text-white" />
+                      </div>
+                      <h3 className="text-xl font-bold text-white mt-2">Cloud Studio Paint</h3>
+                      <p className="text-xs text-zinc-400 bg-zinc-800/50 px-2 py-1 rounded">Versão 3.2.7</p>
+                    </div>
+                    <div className="space-y-3 leading-relaxed">
+                      <p>
+                        <strong>Cloud Studio Paint</strong> é um aplicativo web completo focado em ilustração digital e animação.
+                        Ele foi criado com React, Tailwind CSS e as tecnologias web mais modernas, permitindo desenho nativo pelo canvas do HTML5 com suporte a modos de mesclagem e máscaras de corte.
+                      </p>
+                      <p>
+                        Acesse as incríveis funcionalidades colaborativas, armazenamento de projetos em nuvem e a integração nativa com seu espaço de criatividade online!
+                      </p>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-zinc-800 text-xs text-center text-zinc-500">
+                      © {new Date().getFullYear()} Cloud Studio Paint.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

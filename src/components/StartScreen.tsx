@@ -58,6 +58,10 @@ import {
   Check,
   Baby,
   KeyRound,
+  Maximize,
+  Minimize,
+  Info,
+  Hash,
 } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 import { NavButton } from "./NavButton";
@@ -1322,6 +1326,9 @@ export function StartScreen() {
   const [showCreativeHoursModal, setShowCreativeHoursModal] = useState(false);
   const [showTeamsModal, setShowTeamsModal] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [showAppInfoMenu, setShowAppInfoMenu] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const appInfoMenuRef = useRef<HTMLDivElement>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [showMoveToFolderModal, setShowMoveToFolderModal] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -1734,6 +1741,27 @@ export function StartScreen() {
 
     return () => unsubscribe();
   }, [user]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        appInfoMenuRef.current &&
+        !appInfoMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowAppInfoMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
 
   // Sync User Profile (Real-time)
   useEffect(() => {
@@ -2230,14 +2258,48 @@ export function StartScreen() {
             <Sparkles size={12} className="animate-pulse" />
             O que há de novo?
           </button>
-          <button className="hover:text-white transition-colors cursor-pointer">
-            <HelpCircle size={20} />
-          </button>
+          <div className="relative flex items-center" ref={appInfoMenuRef}>
+            <button 
+              className="hover:text-white transition-colors cursor-pointer"
+              onClick={() => setShowAppInfoMenu(!showAppInfoMenu)}
+            >
+              <HelpCircle size={20} />
+            </button>
+            {showAppInfoMenu && (
+              <div className="absolute top-full right-0 mt-2 w-52 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl overflow-hidden z-50">
+                <div className="flex flex-col py-1">
+                  <div className="flex items-center gap-3 px-4 py-2 hover:bg-zinc-800 transition-colors cursor-pointer text-sm text-zinc-300">
+                    <Info size={16} className="text-indigo-400" />
+                    <span>Sobre o aplicativo</span>
+                  </div>
+                  <div className="flex items-center gap-3 px-4 py-2 hover:bg-zinc-800 transition-colors cursor-pointer text-sm text-zinc-300">
+                    <Hash size={16} className="text-emerald-400" />
+                    <span>Versão atual: 2.3.0</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           <button
             className="hover:text-white transition-colors cursor-pointer"
             onClick={() => alert("Settings")}
           >
             <Settings size={20} />
+          </button>
+          <button
+            className="hover:text-white transition-colors cursor-pointer"
+            title="Tela cheia"
+            onClick={() => {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch((err) => {
+                  console.error(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+              } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+              }
+            }}
+          >
+            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
           </button>
           <button className="hover:text-white transition-colors cursor-pointer">
             <LayoutGrid size={20} />
